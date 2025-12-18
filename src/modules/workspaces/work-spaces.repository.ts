@@ -71,7 +71,6 @@ export class WorkspaceRepository {
   async findById(id: string): Promise<WorkspaceDocument | null> {
     // return this.workspaceModel.findById(id).populate('creatorId').exec();
     return this.workspaceModel.findById(id).exec();
-
   }
 
   async update(
@@ -83,7 +82,10 @@ export class WorkspaceRepository {
       throw new NotFoundException(`Workspace not found.`);
     }
 
-    if (updateWorkspaceDto.name ) {
+    if (
+      updateWorkspaceDto?.name &&
+      updateWorkspaceDto.name !== existingWorkspace.name
+    ) {
       await this.checkWorkspaceExists(
         updateWorkspaceDto.name,
         existingWorkspace.creatorId.toString(),
