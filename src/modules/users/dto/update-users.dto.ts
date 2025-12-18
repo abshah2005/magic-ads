@@ -5,7 +5,7 @@ import { Multer } from 'multer';
 import { Transform } from 'class-transformer';
 
 export class UpdateUserDto extends PartialType(
-  OmitType(CreateUserDto, ['googleId'] as const),
+  OmitType(CreateUserDto, ['googleId','email'] as const),
 ) {
   @IsOptional()
   @IsString()
