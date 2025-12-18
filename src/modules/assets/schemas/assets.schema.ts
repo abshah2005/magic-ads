@@ -24,6 +24,9 @@ export class Asset {
     })
     assetType: string;
 
+  @Prop({ required: false, default: null })
+  sourceType?: string;
+
   @Prop({
     required: true,
     type: MongooseSchema.Types.ObjectId,

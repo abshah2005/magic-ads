@@ -10,6 +10,7 @@ export class AssetItemDto {
   name: string;
   assetType:string;
   sourceLink: string ;
+  sourceType?: string;
   sourceLinkKey:string;
   // folderId: {
   //   _id: string;

@@ -27,6 +27,7 @@ export class AssetStrategy {
       ...createAssetDto,
       sourceLink: uploadUrl,
       sourceLinkKey: key,
+      sourceType:file.mimetype
     };
 
     delete assetData.file;
@@ -48,7 +49,7 @@ export class AssetStrategy {
         contentType: file.mimetype,
         validationConfig: FILE_VALIDATION_PRESETS.ASSET,
       });
-
+      updateAssetDto.sourceType=file.mimetype;
       updateAssetDto.sourceLink = uploadUrl;
       updateAssetDto.sourceLinkKey = key;
     }

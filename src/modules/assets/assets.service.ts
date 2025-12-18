@@ -80,6 +80,7 @@ export class AssetsService {
       name: asset.name,
       sourceLink: asset.sourceLink,
       sourceLinkKey:asset.sourceLinkKey,
+      sourceType:asset.sourceType,
       // folderId: {
       //   _id: folder._id?.toString() || folder,
       //   name: folder.name || '',
