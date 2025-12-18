@@ -11,6 +11,7 @@ import { MagicLinksModule } from '../magiclinks/magic-links.module';
 import { SessionsModule } from '../sessions/sessions.module';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { EmailModule } from '../email/email.module';
+import { WorkspacesModule } from '../workspaces/work-spaces.module';
 
 @Module({
   imports: [
@@ -22,7 +23,8 @@ import { EmailModule } from '../email/email.module';
     UsersModule,
     MagicLinksModule,
     SessionsModule,
-    EmailModule
+    EmailModule,
+    WorkspacesModule
   ],
   providers: [AuthService, JwtMagicLinkStrategy,GoogleAuthService,JwtAuthGuard],
   controllers: [AuthController],

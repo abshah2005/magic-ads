@@ -13,10 +13,14 @@ import { AuthService } from './auth.service';
 import { Public } from 'src/common/decorators/public.decorator';
 import { User } from 'src/common/decorators/user.decorator';
 import { ApiResponse } from 'src/common/responses/api-response';
+import { WorkspaceRepository } from '../workspaces/work-spaces.repository';
 
 @Controller('auth')
 export class AuthController {
-  constructor(private readonly authService: AuthService) {}
+  constructor(
+    private readonly authService: AuthService,
+    private readonly workspaceRepository: WorkspaceRepository,
+  ) {}
 
   @Public()
   @Post('magic-link')
@@ -39,10 +43,17 @@ export class AuthController {
     );
   }
 
-
   @Get('me')
   async getCurrentUser(@User() user: any) {
-   return ApiResponse.success(user, 'logged in User', 200);
+    const workspaceCount = await this.workspaceRepository
+      .getModel()
+      .countDocuments({ creatorId: user._id });
+    const hasWorkspaces = workspaceCount > 0;
+    return ApiResponse.success(
+      { user, hasWorkspaces },
+      'logged in User',
+      200,
+    );
   }
 
   /** Google OAuth signup/login */
