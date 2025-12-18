@@ -1,6 +1,6 @@
 export enum AssetTypeEnum {
-  IMAGE = 'IMAGE',
-  VIDEO = 'VIDEO',
-  DOCUMENT = 'DOCUMENT',
+  GAMEPLAY = 'GAMEPLAY',
+  LOGO = 'LOGO',
+  ICON = 'ICON',
   AUDIO = 'AUDIO',
 }

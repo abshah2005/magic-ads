@@ -37,12 +37,11 @@ export class EmailService {
   }
 
   async sendMagicLinkEmail(email: string, magicToken: string): Promise<void> {
-    const magicLinkUrl = `${process.env.FRONTEND_URL}/auth/verify-magic-link?token=${magicToken}`;
+    const magicLinkUrl = `${process.env.FRONTEND_URL}?token=${magicToken}`;
     const template = magicLinkTemplate(magicLinkUrl);
-    
     await this.sendEmail({
       to: email,
-      subject: '🔐 Your Magic Link - Sign In Securely',
+      subject: ':closed_lock_with_key: Your Magic Link - Sign In Securely',
       html: template,
     });
   }
