@@ -9,7 +9,6 @@ import { Workspace, WorkspaceDocument } from './schemas/work-spaces.schema';
 import { CreateWorkspaceDto } from './dto/create-workspaces.dto';
 import { UpdateWorkspaceDto } from './dto/update-workspaces.dto';
 import { UsersRepository } from '../users/users.repository';
-import { UsersService } from '../users/users.service';
 
 @Injectable()
 export class WorkspaceRepository {
@@ -60,7 +59,6 @@ export class WorkspaceRepository {
     const skip = (page - 1) * limit;
     const data = await this.workspaceModel
       .find()
-      // .populate('creatorId')
       .skip(skip)
       .limit(limit)
       .exec();
@@ -69,7 +67,6 @@ export class WorkspaceRepository {
   }
 
   async findById(id: string): Promise<WorkspaceDocument | null> {
-    // return this.workspaceModel.findById(id).populate('creatorId').exec();
     return this.workspaceModel.findById(id).exec();
   }
 
@@ -136,7 +133,6 @@ export class WorkspaceRepository {
     const skip = (page - 1) * limit;
     const data = await this.workspaceModel
       .find({ creatorId })
-      // .populate('creatorId')
       .skip(skip)
       .limit(limit)
       .exec();

@@ -55,12 +55,6 @@ export class Ad {
   featuresToHighlight: string[];
 
 
-  // @Prop({
-  //   type: MongooseSchema.Types.ObjectId,
-  //   ref: 'Asset',
-  // })
-  // sourceLink: MongooseSchema.Types.ObjectId;
-
   @Prop({
     enum: Object.values(AdStatusEnum),
     default: AdStatusEnum.DRAFT,
@@ -85,7 +79,6 @@ export class Ad {
 
 export const AdSchema = SchemaFactory.createForClass(Ad);
 
-// Indexes
 AdSchema.index({ name: 1, folderId: 1 }, { unique: true });
 AdSchema.index({ workspaceId: 1 });
 AdSchema.index({ status: 1 });

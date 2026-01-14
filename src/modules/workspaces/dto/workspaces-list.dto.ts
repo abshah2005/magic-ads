@@ -17,9 +17,7 @@ export class WorkspaceItemDto {
   email: string;
   appScreenshots?: string[];
   appScreenshotKeys?: string[];
-  // creatorId: OwnerDto;
   creatorId: String;
-
   createdAt: Date;
   updatedAt: Date;
 }

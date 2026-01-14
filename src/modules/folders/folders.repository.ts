@@ -1,21 +1,17 @@
 import {
-  BadRequestException,
   Injectable,
-  NotFoundException,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { Folder, FolderDocument } from './schemas/folders.schema';
 import { CreateFolderDto } from './dto/create-folder.dto';
 import { UpdateFolderDto } from './dto/update-folder.dto';
-import { WorkspaceRepository } from 'src/modules/workspaces/work-spaces.repository';
 import { WorkspaceValidationUtil } from 'src/common/utils/workspace-validation.util';
 
 @Injectable()
 export class FolderRepository {
   constructor(
     @InjectModel(Folder.name) private folderModel: Model<Folder>,
-    private readonly workspaceRepository: WorkspaceRepository,
     private readonly workspaceValidationUtil: WorkspaceValidationUtil,
   ) {}
 
@@ -39,7 +35,6 @@ export class FolderRepository {
     const skip = (page - 1) * limit;
     const data = await this.folderModel
       .find()
-      // .populate('workspaceId')
       .skip(skip)
       .limit(limit)
       .exec();
@@ -48,7 +43,6 @@ export class FolderRepository {
   }
 
   async findById(id: string): Promise<FolderDocument | null> {
-    // return this.folderModel.findById(id).populate('workspaceId').exec();
     return this.folderModel.findById(id).exec();
 
   }
@@ -83,7 +77,6 @@ export class FolderRepository {
 
     return this.folderModel
       .findByIdAndUpdate(id, updateFolderDto, { new: true })
-      // .populate('workspaceId')
       .exec();
   }
 
@@ -131,7 +124,6 @@ export class FolderRepository {
     const skip = (page - 1) * limit;
     const data = await this.folderModel
       .find({ workspaceId })
-      // .populate('workspaceId')
       .skip(skip)
       .limit(limit)
       .exec();

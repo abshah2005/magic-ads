@@ -8,6 +8,6 @@ import { MagicLinkRepository } from './magic-links.repository';
     MongooseModule.forFeature([{ name: MagicLink.name, schema: MagicLinkSchema }]),
   ],
   providers: [MagicLinkRepository],
-  exports: [MagicLinkRepository], // Export AuthRepository for use in other modules
+  exports: [MagicLinkRepository], 
 })
 export class MagicLinksModule {}

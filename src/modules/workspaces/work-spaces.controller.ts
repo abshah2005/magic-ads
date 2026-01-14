@@ -12,18 +12,14 @@ import {
   HttpCode,
   UseInterceptors,
   UploadedFiles,
-  UploadedFile,
 } from '@nestjs/common';
 import { WorkspaceService } from './work-spaces.service';
 import { CreateWorkspaceDto } from './dto/create-workspaces.dto';
 import { UpdateWorkspaceDto } from './dto/update-workspaces.dto';
 
 import { ApiResponse } from 'src/common/responses/api-response';
-import { User } from 'src/common/decorators/user.decorator';
 import {
   FileFieldsInterceptor,
-  FileInterceptor,
-  FilesInterceptor,
 } from '@nestjs/platform-express';
 
 @Controller('workspaces')

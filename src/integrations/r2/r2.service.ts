@@ -67,11 +67,8 @@ export class R2Service {
     const { folder, identifier, contentType } = options;
 
    
-    // this key defines the folder ads an identifier and a random id for variance 
     const key = `${folder}/${identifier}/${crypto.randomUUID()}`;
 
-    // Log the generated key
-    console.log('Generated key:', key);
 
     const command = new PutObjectCommand({
       Bucket: this.bucket,
@@ -90,7 +87,6 @@ export class R2Service {
     }
   }
 
-  /** Delete object from R2 */
   async deleteObject(key: string) {
     try {
       await this.s3.send(

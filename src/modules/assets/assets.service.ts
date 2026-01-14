@@ -3,8 +3,8 @@ import { AssetStrategy } from './strategies/asset.strategy';
 import { AssetRepository } from './assets.repository';
 import { CreateAssetDto } from './dto/create-asset.dto';
 import { UpdateAssetDto } from './dto/update-asset.dto';
-import { AssetListDto, AssetItemDto } from './dto/assets-list.dto';
-import { Asset, AssetDocument } from './schemas/assets.schema';
+import {  AssetItemDto } from './dto/assets-list.dto';
+import {  AssetDocument } from './schemas/assets.schema';
 import { PaginationUtil } from 'src/common/utils/pagination.util';
 import { ApiResponse } from 'src/common/responses/api-response';
 import { AssetQueryDto } from './dto/asset-query.dto';
@@ -72,7 +72,6 @@ export class AssetsService {
   }
 
   private mapToAssetItemDto(asset: AssetDocument): AssetItemDto {
-    // const folder = asset.folderId as any;
 
     return {
       _id: asset._id.toString(),
@@ -81,10 +80,6 @@ export class AssetsService {
       sourceLink: asset.sourceLink,
       sourceLinkKey:asset.sourceLinkKey,
       sourceType:asset.sourceType,
-      // folderId: {
-      //   _id: folder._id?.toString() || folder,
-      //   name: folder.name || '',
-      // },
       folderId:asset.folderId.toString(),
       workSpaceId: asset.workspaceId.toString(),
       createdAt: asset.createdAt,

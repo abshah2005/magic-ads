@@ -8,10 +8,9 @@ import { ApiError } from '../responses/api-error';
 
 @Catch()
 export class HttpExceptionFilter implements ExceptionFilter {
-  catch(exception: any, host: ArgumentsHost) {
+  catch(exception: unknown, host: ArgumentsHost) {
     const ctx = host.switchToHttp();
     const response = ctx.getResponse();
-    const request = ctx.getRequest();
 
     const status =
       exception instanceof HttpException
@@ -21,9 +20,9 @@ export class HttpExceptionFilter implements ExceptionFilter {
     const errResponse =
       exception instanceof HttpException
         ? (exception.getResponse() as
-            | { message: string | string[]; [key: string]: any }
+            | { message: string | string[]; [key: string]: unknown }
             | string)
-        : { message: 'Internal server error', stack: exception.stack };
+        : { message: 'Internal server error', stack: (exception as Error)?.stack };
 
     const message =
       typeof errResponse === 'string'

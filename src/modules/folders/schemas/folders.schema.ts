@@ -9,10 +9,6 @@ export class Folder {
 
   @Prop({ required: true })
   name: string;
-
-  // @Prop({ required: false, default: null })
-  // image: string;
-
   
   @Prop({ 
     required: true,
@@ -24,9 +20,6 @@ export class Folder {
   @Prop({ 
     required: true,
     enum: Object.values(FolderTypeEnum),
-    // TODO: Later migrate to reference FolderTypeDocument
-    // type: Schema.Types.ObjectId,
-    // ref: 'FolderType'
   })
   folderTypeId: string;
 

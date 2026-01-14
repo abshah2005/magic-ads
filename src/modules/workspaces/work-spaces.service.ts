@@ -1,20 +1,18 @@
 import {
   Injectable,
   NotFoundException,
-  ConflictException,
   BadRequestException,
 } from '@nestjs/common';
 import { WorkspaceStrategy } from './strategies/work-space.strategy';
 import { WorkspaceRepository } from './work-spaces.repository';
 import { CreateWorkspaceDto } from './dto/create-workspaces.dto';
 import { UpdateWorkspaceDto } from './dto/update-workspaces.dto';
-import { WorkspaceListDto, WorkspaceItemDto } from './dto/workspaces-list.dto';
-import { Workspace, WorkspaceDocument } from './schemas/work-spaces.schema';
+import {  WorkspaceItemDto } from './dto/workspaces-list.dto';
+import {  WorkspaceDocument } from './schemas/work-spaces.schema';
 import { PaginationUtil } from 'src/common/utils/pagination.util';
 import { ApiResponse } from 'src/common/responses/api-response';
 import { CascadeService } from 'src/common/services/common.service';
 import { CascadeConfigService } from 'src/common/services/cascade-config.service';
-import { ApiError } from 'src/common/responses/api-error';
 import { R2Service } from 'src/integrations/r2/r2.service';
 import { FILE_VALIDATION_PRESETS } from 'src/integrations/r2/r2-file-validator.service';
 
@@ -119,12 +117,10 @@ export class WorkspaceService {
     }
 
     if (updateWorkspaceDto.imageFile) {
-      // Delete old image if exists
       if (workspace.imageKey) {
         await this.r2Service.deleteObject(workspace.imageKey);
       }
 
-      // Upload new image
       const { uploadUrl, key } = await this.r2Service.uploadFile(
         updateWorkspaceDto.imageFile,
         {
@@ -138,7 +134,6 @@ export class WorkspaceService {
       updateWorkspaceDto.image = uploadUrl;
       updateWorkspaceDto.imageKey = key;
     } else if (updateWorkspaceDto.deleteOld) {
-      // Delete image without uploading new one
       if (workspace.imageKey) {
         await this.r2Service.deleteObject(workspace.imageKey);
       }
@@ -146,7 +141,6 @@ export class WorkspaceService {
       updateWorkspaceDto.imageKey = null;
     }
 
-    // ✅ Handle screenshot removal
     let currentScreenshots = [...(workspace.appScreenshots || [])];
     let currentKeys = [...(workspace.appScreenshotKeys || [])];
 
@@ -154,28 +148,23 @@ export class WorkspaceService {
       updateWorkspaceDto.removeScreenshotIndexes &&
       updateWorkspaceDto.removeScreenshotIndexes.length > 0
     ) {
-      // Sort indexes in descending order to remove from end first
       const sortedIndexes = updateWorkspaceDto.removeScreenshotIndexes.sort(
         (a, b) => b - a,
       );
 
       for (const index of sortedIndexes) {
         if (index >= 0 && index < currentKeys.length) {
-          // Delete from R2
           await this.r2Service.deleteObject(currentKeys[index]);
-          // Remove from arrays
           currentScreenshots.splice(index, 1);
           currentKeys.splice(index, 1);
         }
       }
     }
 
-    // ✅ Handle adding new screenshots
     if (
       updateWorkspaceDto.newScreenshotFiles &&
       updateWorkspaceDto.newScreenshotFiles.length > 0
     ) {
-      // Check max 3 screenshots limit
       if (currentScreenshots.length + updateWorkspaceDto.newScreenshotFiles.length > 3) {
         throw new BadRequestException(
           `Cannot add ${updateWorkspaceDto.newScreenshotFiles.length} screenshots. Maximum 3 screenshots allowed. Current: ${currentScreenshots.length}`,
@@ -195,11 +184,9 @@ export class WorkspaceService {
       }
     }
 
-    // Update screenshots in DTO
     updateWorkspaceDto.appScreenshots = currentScreenshots;
     updateWorkspaceDto.appScreenshotKeys = currentKeys;
 
-    // Clean up temporary fields
     delete updateWorkspaceDto.imageFile;
     delete updateWorkspaceDto.deleteOld;
     delete updateWorkspaceDto.newScreenshotFiles;
@@ -213,94 +200,7 @@ export class WorkspaceService {
   }
 
 
-  // async update(
-  //   id: string,
-  //   updateWorkspaceDto: UpdateWorkspaceDto,
-  // ): Promise<ApiResponse> {
-  //   const workspace = await this.workspaceRepository.findById(id);
-  //   if (!workspace) {
-  //     throw new NotFoundException('Workspace not found');
-  //   }
-
-  //   // Handle main image update (existing logic)
-  //   if (updateWorkspaceDto.deleteOld || updateWorkspaceDto.image == null) {
-  //     if (workspace.imageKey) {
-  //       await this.r2Service.deleteObject(workspace.imageKey);
-  //     }
-  //     updateWorkspaceDto.image = null;
-  //     updateWorkspaceDto.imageKey = null;
-  //   } else if (updateWorkspaceDto.key) {
-  //     if (workspace.imageKey) {
-  //       await this.r2Service.deleteObject(workspace.imageKey);
-  //     }
-  //     const publicUrl = this.r2Service.getPublicUrl(updateWorkspaceDto.key);
-  //     updateWorkspaceDto.image = publicUrl;
-  //     updateWorkspaceDto.imageKey = updateWorkspaceDto.key;
-  //   }
-
-  //   // Handle screenshot removal
-  //   if (
-  //     updateWorkspaceDto.removeScreenshotIndexes &&
-  //     updateWorkspaceDto.removeScreenshotIndexes.length > 0
-  //   ) {
-  //     const currentScreenshots = [...(workspace.appScreenshots || [])];
-  //     const currentKeys = [...(workspace.appScreenshotKeys || [])];
-
-  //     // Sort indexes in descending order to remove from end first
-  //     const sortedIndexes = updateWorkspaceDto.removeScreenshotIndexes.sort(
-  //       (a, b) => b - a,
-  //     );
-
-  //     for (const index of sortedIndexes) {
-  //       if (index >= 0 && index < currentKeys.length && currentKeys[index]) {
-  //         // Delete from R2
-  //         await this.r2Service.deleteObject(currentKeys[index]);
-  //         // Remove from arrays
-  //         currentScreenshots.splice(index, 1);
-  //         currentKeys.splice(index, 1);
-  //       }
-  //     }
-
-  //     updateWorkspaceDto.appScreenshots = currentScreenshots;
-  //     updateWorkspaceDto.appScreenshotKeys = currentKeys;
-  //   }
-
-  //   // Handle adding new screenshots
-  //   if (
-  //     updateWorkspaceDto.screenshotKeys &&
-  //     updateWorkspaceDto.screenshotKeys.length > 0
-  //   ) {
-  //     const currentScreenshots =
-  //       updateWorkspaceDto.appScreenshots || workspace.appScreenshots || [];
-  //     const currentKeys =
-  //       updateWorkspaceDto.appScreenshotKeys ||
-  //       workspace.appScreenshotKeys ||
-  //       [];
-
-  //     for (const key of updateWorkspaceDto.screenshotKeys) {
-  //       if (currentScreenshots.length < 3) {
-  //         const publicUrl = this.r2Service.getPublicUrl(key);
-  //         currentScreenshots.push(publicUrl!);
-  //         currentKeys.push(key);
-  //       }
-  //     }
-
-  //     updateWorkspaceDto.appScreenshots = currentScreenshots;
-  //     updateWorkspaceDto.appScreenshotKeys = currentKeys;
-  //   }
-
-  //   // Clean up temporary fields
-  //   delete updateWorkspaceDto.key;
-  //   delete updateWorkspaceDto.deleteOld;
-  //   delete updateWorkspaceDto.screenshotKeys;
-  //   delete updateWorkspaceDto.removeScreenshotIndexes;
-
-  //   const response = await this.workspaceStrategy.executeUpdate(
-  //     id,
-  //     updateWorkspaceDto,
-  //   );
-  //   return ApiResponse.success(response, 'Workspace updated successfully', 200);
-  // }
+  
 
   async softDelete(id: string): Promise<ApiResponse> {
     const workspace = await this.workspaceRepository.findById(id);
@@ -312,21 +212,14 @@ export class WorkspaceService {
       throw new NotFoundException('Workspace already marked for deletion');
     }
 
-    // Get preview first
     const relations = this.cascadeConfigService.getWorkspaceCascadeRelations();
-    const preview = await this.cascadeService.getCascadePreview(
-      this.workspaceRepository.getModel(),
-      id,
-      relations,
-    );
+   
 
-    // Perform cascade soft delete
     const result = await this.cascadeService.softDeleteCascade(
       this.workspaceRepository.getModel(),
       id,
       relations,
     );
-    // console.log('result of soft delete', result);
     return ApiResponse.success(
       { affectedCounts: result.cascadeResults },
       `Workspace and its related items marked deleted successfully`,
@@ -361,22 +254,14 @@ export class WorkspaceService {
     );
   }
 
-  // ✅ Update hard delete to use cascade service
   async delete(id: string): Promise<ApiResponse> {
     const workspace = await this.workspaceRepository.findById(id);
     if (!workspace) {
       throw new NotFoundException('Workspace not found');
     }
 
-    // Get preview first
     const relations = this.cascadeConfigService.getWorkspaceCascadeRelations();
-    const preview = await this.cascadeService.getCascadePreview(
-      this.workspaceRepository.getModel(),
-      id,
-      relations,
-    );
-
-    // Perform cascade hard delete
+    
     const result = await this.cascadeService.hardDeleteCascade(
       this.workspaceRepository.getModel(),
       id,
@@ -390,7 +275,6 @@ export class WorkspaceService {
     );
   }
 
-  // ✅ Update restore to use cascade service
   async restore(id: string): Promise<ApiResponse> {
     const workspace = await this.workspaceRepository.findById(id);
 
@@ -448,7 +332,6 @@ export class WorkspaceService {
   private mapToWorkspaceItemDto(
     workspace: WorkspaceDocument,
   ): WorkspaceItemDto {
-    // const owner = workspace.creatorId as any;
     return {
       _id: workspace._id.toString(),
       name: workspace.name,
@@ -461,13 +344,6 @@ export class WorkspaceService {
       email: workspace.email,
       appScreenshots: workspace.appScreenshots,
       appScreenshotKeys: workspace.appScreenshotKeys,
-      // creatorId: {
-      //   _id: owner._id?.toString() || owner,
-      //   username: owner.username,
-      //   email: owner.email,
-      //   firstName: owner.firstName,
-      //   lastName: owner.lastName,
-      // },
       creatorId: workspace.creatorId.toString(),
       createdAt: workspace.createdAt,
       updatedAt: workspace.updatedAt,

@@ -18,9 +18,6 @@ export class Asset {
   @Prop({ 
       required: true,
       enum: Object.values(AssetTypeEnum),
-      // TODO: Later migrate to reference FolderTypeDocument
-      // type: Schema.Types.ObjectId,
-      // ref: 'FolderType'
     })
     assetType: string;
 

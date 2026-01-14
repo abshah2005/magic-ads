@@ -4,7 +4,7 @@ import { AdRepository } from './ads.repository';
 import { CreateAdDto } from './dto/create-ad.dto';
 import { UpdateAdDto } from './dto/update-ad.dto';
 import { AdItemDto } from './dto/ads-list.dto';
-import { Ad, AdDocument } from './schemas/ads.schema';
+import { AdDocument } from './schemas/ads.schema';
 import { PaginationUtil } from 'src/common/utils/pagination.util';
 import { ApiResponse } from 'src/common/responses/api-response';
 import { AdQueryDto } from './dto/ads-query.dto';
@@ -72,11 +72,7 @@ export class AdsService {
     return ApiResponse.success(null, 'Ad deleted successfully', 200);
   }
 
-  private mapToAdItemDto(ad: AdDocument): AdItemDto {
-    const folder = ad.folderId as any;
-    
-    // const sourceLink = ad.sourceLink as any;
-
+  private mapToAdItemDto(ad: AdDocument): AdItemDto {    
     return {
       _id: ad._id.toString(),
       name: ad.name,
@@ -88,10 +84,6 @@ export class AdsService {
       featuresToHighlight: ad.featuresToHighlight,
       status: ad.status,
       estimatedCredits: ad.estimatedCredits,
-      // folderId: {
-      //   _id: folder._id?.toString() || folder,
-      //   name: folder.name || '',
-      // },
       folderId:ad.folderId.toString(),
       workspaceId: ad.workspaceId.toString(),
       createdAt: ad.createdAt,

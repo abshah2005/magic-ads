@@ -54,9 +54,6 @@ export class CreateAdDto {
   @IsEnum(FeaturesToHighlightEnum, { each: true })
   featuresToHighlight?: FeaturesToHighlightEnum[];
 
-  //   @IsOptional()
-  //   @IsMongoId({ message: 'Source link must be a valid MongoDB ObjectId' })
-  //   sourceLink?: string;
 
   @IsOptional()
   @IsNumber()

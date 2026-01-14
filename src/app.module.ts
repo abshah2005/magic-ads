@@ -8,7 +8,6 @@ import { WorkspacesModule } from './modules/workspaces/work-spaces.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { FoldersModule } from './modules/folders/folders.module';
 import { AssetsModule } from './modules/assets/assets.module';
-import { JwtModule } from '@nestjs/jwt';
 import { JwtAuthGuard } from './modules/auth/guards/jwt-auth.guard';
 import { AdsModule } from './modules/ads/ads.module';
 import { CommonModule } from './common/common.module';
@@ -30,8 +29,8 @@ import { MediaModule } from './modules/media/media.module';
 
     ThrottlerModule.forRoot([
       {
-        ttl: 60000, // 1 minute
-        limit: 100, // 100 requests per minute
+        ttl: 60000, 
+        limit: 100, 
       },
     ]),
 

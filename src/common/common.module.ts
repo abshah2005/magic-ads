@@ -9,7 +9,7 @@ import { CascadeConfigService } from './services/cascade-config.service';
 import { R2Service } from 'src/integrations/r2/r2.service';
 import { R2Module } from 'src/integrations/r2/r2.module';
 
-@Global() // ✅ Make it globally available
+@Global() 
 @Module({
   imports: [
     MongooseModule.forFeature([

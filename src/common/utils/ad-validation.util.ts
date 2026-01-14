@@ -5,6 +5,7 @@ import {
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { Ad } from 'src/modules/ads/schemas/ads.schema';
+import { AdQuery } from 'src/shared/interfaces/ad-query-params';
 
 @Injectable()
 export class AdValidationUtil {
@@ -17,7 +18,7 @@ export class AdValidationUtil {
     folderId: string,
     excludeAdId?: string,
   ): Promise<void> {
-    const query: any = {
+    const query: AdQuery = {
       name: adName,
       folderId: folderId,
       isDeleted: false,

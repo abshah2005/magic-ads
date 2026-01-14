@@ -5,7 +5,6 @@ import {
   Get,
   Query,
   Req,
-  UseGuards,
   HttpCode,
   HttpStatus,
 } from '@nestjs/common';
@@ -25,11 +24,9 @@ export class AuthController {
   @Public()
   @Post('magic-link')
   @HttpCode(HttpStatus.OK)
-  async requestMagicLink(@Body('email') email: string, @Req() req: any) {
+  async requestMagicLink(@Body('email') email: string, ) {
     return this.authService.requestMagicLink(
       email,
-      req.ip,
-      req.headers['user-agent'],
     );
   }
 
@@ -43,8 +40,9 @@ export class AuthController {
     );
   }
 
+
   @Get('me')
-  async getCurrentUser(@User() user: any) {
+  async getCurrentUser(@User() user) {
     const workspaceCount = await this.workspaceRepository
       .getModel()
       .countDocuments({ creatorId: user._id });
@@ -64,7 +62,6 @@ export class AuthController {
     return this.authService.googleSignupOrLogin(token);
   }
 
-  /** Refresh session */
   @Public()
   @Post('refresh-session')
   @HttpCode(HttpStatus.OK)

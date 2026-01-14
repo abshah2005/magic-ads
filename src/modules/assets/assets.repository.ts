@@ -9,18 +9,15 @@ import { Model } from 'mongoose';
 import { Asset, AssetDocument } from './schemas/assets.schema';
 import { CreateAssetDto } from './dto/create-asset.dto';
 import { UpdateAssetDto } from './dto/update-asset.dto';
-import { AssetValidationUtil } from 'src/common/utils/asset-validation.util';
 import { FolderService } from '../folders/folders.service';
 import { WorkspaceValidationUtil } from 'src/common/utils/workspace-validation.util';
-import { CreateWorkspaceDto } from '../workspaces/dto/create-workspaces.dto';
-import { AssetQueryParams } from 'src/shared/interfaces/asset-query-params.interface';
 import { R2Service } from 'src/integrations/r2/r2.service';
+import { AssetQuery, AssetSortOptions } from 'src/shared/interfaces/asset-query-params';
 
 @Injectable()
 export class AssetRepository {
   constructor(
     @InjectModel(Asset.name) private assetModel: Model<AssetDocument>,
-    private readonly assetValidationUtil: AssetValidationUtil,
     private readonly workspaceValidationUtil: WorkspaceValidationUtil,
     private readonly foldersService: FolderService,
     private readonly r2Service: R2Service,
@@ -73,7 +70,7 @@ export class AssetRepository {
     } = queryParams;
 
     const skip = (page - 1) * limit;
-    const query: any = { isDeleted };
+    const query: AssetQuery = { isDeleted };
 
     if (folderId) {
       query.folderId = folderId;
@@ -105,7 +102,7 @@ export class AssetRepository {
     }
 
     // Sorting
-    const sortOptions: any = {};
+    const sortOptions: AssetSortOptions = {};
     const validSortFields = ['name', 'createdAt', 'updatedAt', 'assetType'];
     const sortField = validSortFields.includes(sortBy) ? sortBy : 'createdAt';
     sortOptions[sortField] = sortOrder === 'asc' ? 1 : -1;
@@ -114,7 +111,6 @@ export class AssetRepository {
     const [data, total] = await Promise.all([
       this.assetModel
         .find(query)
-        // .populate('folderId')
         .sort(sortOptions)
         .skip(skip)
         .limit(limit)
@@ -134,7 +130,6 @@ export class AssetRepository {
   }
 
   async findById(id: string): Promise<AssetDocument | null> {
-    // return this.assetModel.findById(id).populate('folderId').exec();
     return this.assetModel.findById(id).exec();
   }
 
@@ -174,7 +169,6 @@ export class AssetRepository {
     return (
       this.assetModel
         .findByIdAndUpdate(id, updateAssetDto, { new: true })
-        // .populate('folderId')
         .exec()
     );
   }
@@ -197,7 +191,6 @@ export class AssetRepository {
       },
       { new: true },
     );
-    // .populate('folderId');
   }
 
   async restore(id: string): Promise<AssetDocument | null> {
@@ -218,7 +211,6 @@ export class AssetRepository {
       },
       { new: true },
     );
-    // .populate('folderId');
   }
 
   async delete(id: string): Promise<Asset | null> {
@@ -236,13 +228,12 @@ export class AssetRepository {
     folderId: string,
     excludeAssetId?: string,
   ): Promise<void> {
-    const query: any = {
-      name,
-      folderId,
-      isDeleted: false,
-    };
+    const query: AssetQuery = {
+    name,
+    folderId,
+    isDeleted: false,
+  };
 
-    // Exclude current asset when updating
     if (excludeAssetId) {
       query._id = { $ne: excludeAssetId };
     }

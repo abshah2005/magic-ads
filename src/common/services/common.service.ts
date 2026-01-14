@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { Model, ClientSession, Types } from 'mongoose';
+import { Model, ClientSession } from 'mongoose';
 import { InjectConnection } from '@nestjs/mongoose';
 import { Connection } from 'mongoose';
 import { R2Service } from 'src/integrations/r2/r2.service';
@@ -318,11 +318,6 @@ export class CascadeService {
       'appScreenshotKeys',
     ];
 
-    // for (const field of fieldsToCheck) {
-    //   if (entity[field] && typeof entity[field] === 'string') {
-    //     keys.push(entity[field]);
-    //   }
-    // }
     for (const field of fieldsToCheck) {
       if (entity[field]) {
         if (typeof entity[field] === 'string') {
@@ -351,7 +346,6 @@ export class CascadeService {
         await this.r2Service.deleteObject(key);
       } catch (error) {
         console.warn(`Failed to delete R2 object with key: ${key}`, error);
-        // Continue with other deletions even if one fails
       }
     }
   }

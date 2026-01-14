@@ -5,8 +5,6 @@ import {
   IsBoolean,
   IsString,
   IsArray,
-  ValidateNested,
-  ArrayMaxSize,
   IsInt,
   Min,
   Max,
@@ -27,7 +25,6 @@ export class UpdateWorkspaceDto extends PartialType(CreateWorkspaceDto) {
   @IsOptional()
   newScreenshotFiles?: Express.Multer.File[];
 
-  // Indexes of screenshots to remove (0-based)
   @IsOptional()
   @IsArray()
   @IsInt({ each: true })

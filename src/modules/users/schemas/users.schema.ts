@@ -35,7 +35,6 @@ export class User {
   @Prop()
   secondaryEmail: string;
 
-  //this part is totally dependent on stripe we will define a plan module which will manage all the credits available and consumed logic which will be reflected here for now we have just included fields for future scalability
   @Prop()
   planId: string;
 

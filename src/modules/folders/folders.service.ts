@@ -3,8 +3,8 @@ import { FolderStrategy } from './strategies/folder.strategy';
 import { FolderRepository } from './folders.repository';
 import { CreateFolderDto } from './dto/create-folder.dto';
 import { UpdateFolderDto } from './dto/update-folder.dto';
-import { FolderListDto, FolderItemDto } from './dto/folders-list.dto';
-import { Folder, FolderDocument } from './schemas/folders.schema';
+import {  FolderItemDto } from './dto/folders-list.dto';
+import { FolderDocument } from './schemas/folders.schema';
 import { PaginationUtil } from 'src/common/utils/pagination.util';
 import { ApiResponse } from 'src/common/responses/api-response';
 import { CascadeService } from 'src/common/services/common.service';
@@ -15,7 +15,7 @@ export class FolderService {
   constructor(
     private readonly folderStrategy: FolderStrategy,
     private readonly folderRepository: FolderRepository,
-    private readonly cascadeService: CascadeService, // ✅ Inject
+    private readonly cascadeService: CascadeService, 
     private readonly cascadeConfigService: CascadeConfigService,
   ) {}
 
@@ -98,15 +98,9 @@ export class FolderService {
       
     }
 
-    // Get preview first
     const relations = this.cascadeConfigService.getFolderCascadeRelations();
-    const preview = await this.cascadeService.getCascadePreview(
-      this.folderRepository.getModel(),
-      id,
-      relations
-    );
+   
 
-    // Perform cascade soft delete
     const result = await this.cascadeService.softDeleteCascade(
       this.folderRepository.getModel(),
       id,
@@ -127,15 +121,9 @@ export class FolderService {
       throw new NotFoundException('Folder not found');
     }
 
-    // Get preview first
     const relations = this.cascadeConfigService.getFolderCascadeRelations();
-    const preview = await this.cascadeService.getCascadePreview(
-      this.folderRepository.getModel(),
-      id,
-      relations
-    );
+   
 
-    // Perform cascade hard delete
     const result = await this.cascadeService.hardDeleteCascade(
       this.folderRepository.getModel(),
       id,
@@ -149,7 +137,6 @@ export class FolderService {
     );
   }
 
-  // ✅ Add cascade restore (same pattern as workspace)
   async restore(id: string): Promise<ApiResponse> {
     const folder = await this.folderRepository.findById(id);
     if (!folder) {
@@ -208,8 +195,7 @@ export class FolderService {
     return {
       _id: folder._id.toString(),
       name: folder.name,
-      // image: folder.image,
-      workspaceId: folder.workspaceId as any,
+      workspaceId: folder.workspaceId.toString(),
       folderTypeId: folder.folderTypeId,
       isDeleted: folder.isDeleted,
       deletedAt: folder.deletedAt,

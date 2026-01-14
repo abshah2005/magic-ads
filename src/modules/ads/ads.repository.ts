@@ -4,15 +4,14 @@ import { Model } from 'mongoose';
 import { Ad, AdDocument } from './schemas/ads.schema';
 import { CreateAdDto } from './dto/create-ad.dto';
 import { UpdateAdDto } from './dto/update-ad.dto';
-import { AdValidationUtil } from 'src/common/utils/ad-validation.util';
 import { FolderService } from '../folders/folders.service';
 import { WorkspaceValidationUtil } from 'src/common/utils/workspace-validation.util';
+import { AdQuery, AdSortOptions } from 'src/shared/interfaces/ad-query-params';
 
 @Injectable()
 export class AdRepository {
   constructor(
     @InjectModel(Ad.name) private adModel: Model<AdDocument>,
-    private readonly adValidationUtil: AdValidationUtil,
     private readonly workspaceValidationUtil: WorkspaceValidationUtil,
     private readonly foldersService: FolderService,
   ) {}
@@ -71,7 +70,7 @@ export class AdRepository {
     } = queryParams;
 
     const skip = (page - 1) * limit;
-    const query: any = { isDeleted };
+   const query: AdQuery = { isDeleted };
 
     // Folder or Workspace filtering
     if (folderId) {
@@ -122,16 +121,14 @@ export class AdRepository {
     }
 
     // Sorting
-    const sortOptions: any = {};
+    const sortOptions: AdSortOptions = {};
     const validSortFields = ['name', 'createdAt', 'updatedAt', 'status', 'adStyle', 'duration'];
     const sortField = validSortFields.includes(sortBy) ? sortBy : 'createdAt';
     sortOptions[sortField] = sortOrder === 'asc' ? 1 : -1;
 
-    // Execute queries
     const [data, total] = await Promise.all([
       this.adModel
         .find(query)
-        // .populate('folderId')
         .sort(sortOptions)
         .skip(skip)
         .limit(limit)
@@ -151,7 +148,6 @@ export class AdRepository {
   }
 
   async findById(id: string): Promise<AdDocument | null> {
-    // return this.adModel.findById(id).populate('folderId').exec();
     return this.adModel.findById(id).exec();
 
   }
@@ -181,7 +177,6 @@ export class AdRepository {
 
     return this.adModel
       .findByIdAndUpdate(id, updateAdDto, { new: true })
-      // .populate('folderId')
       .exec();
   }
 
@@ -206,7 +201,6 @@ export class AdRepository {
         },
         { new: true },
       )
-      // .populate('folderId');
   }
 
   async restore(id: string): Promise<AdDocument | null> {
@@ -230,7 +224,6 @@ export class AdRepository {
         },
         { new: true },
       )
-      // .populate('folderId');
   }
 
   async delete(id: string): Promise<Ad | null> {
@@ -242,13 +235,12 @@ export class AdRepository {
     folderId: string,
     excludeAdId?: string,
   ): Promise<void> {
-    const query: any = {
-      name,
-      folderId,
-      isDeleted: false,
-    };
+    const query: AdQuery = {
+    name,
+    folderId,
+    isDeleted: false,
+  };
 
-    // Exclude current ad when updating
     if (excludeAdId) {
       query._id = { $ne: excludeAdId };
     }

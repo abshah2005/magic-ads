@@ -28,9 +28,6 @@ export class Workspace {
   @Prop({ 
     required: true,
     enum: Object.values(CategoryEnum),
-    // TODO: Later migrate to reference CategoryDocument
-    // type: Schema.Types.ObjectId,
-    // ref: 'Category'
   })
   categoryId: string;
 

@@ -9,6 +9,7 @@ async function bootstrap() {
   app.setGlobalPrefix("api/v1");
   app.useGlobalPipes(new ValidationPipe({ whitelist: true }));
   app.useGlobalFilters(new HttpExceptionFilter());
+  app.useLogger(['error', 'warn', 'log', 'debug', 'verbose']);
 
   await app.listen(process.env.PORT ?? 3000, '0.0.0.0');
 }

@@ -2,19 +2,16 @@ import {
   Injectable,
   NotFoundException,
   BadRequestException,
-  Logger,
 } from '@nestjs/common';
 import { WorkspaceRepository } from 'src/modules/workspaces/work-spaces.repository';
 import { WorkspaceDocument } from 'src/modules/workspaces/schemas/work-spaces.schema';
-import { Folder, FolderDocument } from 'src/modules/folders/schemas/folders.schema';
+import { Folder } from 'src/modules/folders/schemas/folders.schema';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
+import { FolderQuery } from 'src/shared/interfaces/folder-query-params';
 @Injectable()
 export class WorkspaceValidationUtil {
-  private readonly logger = new Logger(WorkspaceValidationUtil.name,
-    
-  );
-
+ 
   constructor(
     private readonly workspaceRepository: WorkspaceRepository,
     @InjectModel(Folder.name) private folderModel: Model<Folder>,
@@ -57,7 +54,7 @@ export class WorkspaceValidationUtil {
     excludeFolderId?: string,
   ): Promise<void> {
     try {
-      const query: any = {
+      const query: FolderQuery = {
         name: folderName,
         workspaceId: workspaceId,
         isDeleted: false,

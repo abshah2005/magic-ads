@@ -8,7 +8,6 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
     MongooseModule.forRootAsync({
       imports: [ConfigModule],
       useFactory: (cfg: ConfigService) => {
-        // const uri = cfg.get<string>('MONGO_URI')!;
         const nodeEnv = cfg.get<string>('NODE_ENV');
         const uri = nodeEnv === 'prod' 
           ? cfg.get<string>('MONGO_URI')!
@@ -29,7 +28,7 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
             conn.on('error', (err) => console.error('MongoDB error', err));
             return conn;
           },
-        } as any;
+        }
       },
       inject: [ConfigService],
     }),

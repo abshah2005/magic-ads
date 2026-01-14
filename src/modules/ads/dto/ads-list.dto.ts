@@ -16,10 +16,6 @@ export class AdItemDto {
   featuresToHighlight: string[];
   status: string;
   estimatedCredits: number;
-  // folderId: {
-  //   _id: string;
-  //   name: string;
-  // };
   folderId:string;
   workspaceId: string;
   createdAt: Date;

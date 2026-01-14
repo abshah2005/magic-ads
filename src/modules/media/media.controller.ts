@@ -5,11 +5,9 @@ import {
   Delete,
   Query,
   Body,
-  UseGuards,
 } from '@nestjs/common';
 import { MediaService } from './media.service';
 import { ApiResponse } from 'src/common/responses/api-response';
-import { User } from 'src/common/decorators/user.decorator';
 import { GenerateUploadUrlDto } from './dto/generate-upload-url.dto';
 import { FileKeyDto } from './dto/file-key.dto';
 
@@ -20,7 +18,6 @@ export class MediaController {
   @Post('upload-url')
   async generateUploadUrl(
     @Body() generateUploadUrlDto: GenerateUploadUrlDto,
-    @User() user: any,
   ) {
     const uploadResponse = await this.mediaService.generateUploadUrl({
       folder: generateUploadUrlDto.folder,

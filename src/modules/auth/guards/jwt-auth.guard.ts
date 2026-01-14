@@ -17,7 +17,6 @@ export class JwtAuthGuard implements CanActivate {
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
-    // Check if the route is marked as public
     const isPublic = this.reflector.getAllAndOverride<boolean>(IS_PUBLIC_KEY, [
       context.getHandler(),
       context.getClass(),
@@ -41,7 +40,7 @@ export class JwtAuthGuard implements CanActivate {
 
     try {
       const user = await this.authService.getCurrentUser(token);
-      request.user = user; // Attach user to request object
+      request.user = user; 
       return true;
     } catch (error) {
       throw new UnauthorizedException('Access denied');

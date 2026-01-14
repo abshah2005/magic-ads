@@ -12,10 +12,6 @@ export class AssetItemDto {
   sourceLink: string ;
   sourceType?: string;
   sourceLinkKey:string;
-  // folderId: {
-  //   _id: string;
-  //   name: string;
-  // };
   folderId: string;
   workSpaceId:String;
   createdAt: Date;

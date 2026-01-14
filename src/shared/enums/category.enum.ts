@@ -5,6 +5,4 @@ export enum CategoryEnum {
   HEALTH = 'HEALTH',
   ENTERTAINMENT = 'ENTERTAINMENT',
   SPORTS = 'SPORTS',
-  // TODO: Later migrate categoryId to reference CategoryDocument instead of enum
-  // This will allow dynamic category management
 }

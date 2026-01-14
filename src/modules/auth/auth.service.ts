@@ -16,11 +16,11 @@ import {
 import { CreateUserDto } from '../users/dto/create-users.dto';
 import { GoogleAuthService } from 'src/integrations/googleAuth/google-auth.service';
 import * as crypto from 'crypto';
-import * as jwt from 'jsonwebtoken';
 import { UsersRepository } from '../users/users.repository';
 import { ApiResponse } from 'src/common/responses/api-response';
-import { extractToken } from 'src/common/utils/extractToken.util';
 import { EmailService } from '../email/email.service';
+
+
 
 @Injectable()
 export class AuthService {
@@ -33,7 +33,6 @@ export class AuthService {
     private readonly emailService: EmailService,
   ) {}
 
-  /** Google OAuth signup/login */
   async googleSignupOrLogin(token: string): Promise<ApiResponse> {
     const googleUser = await this.googleAuthService.verifyGoogleToken(token);
 
@@ -72,22 +71,19 @@ export class AuthService {
     return ApiResponse.success(responseData, 'Logged in via Google OAuth');
   }
 
-  /** Magic link request */
   async requestMagicLink(
     email: string,
-    ip: string,
-    userAgent: string,
   ): Promise<ApiResponse> {
     let user = await this.usersService.findByEmail(email);
     if (!user) {
       const userData: CreateUserDto = {
-        username: email.split('@')[0], // Use email prefix as default username
+        username: email.split('@')[0], 
         email: email,
-        googleId: undefined, // No Google ID for magic link signup
-        firstName: 'Guest', // Default first name
-        lastName: 'User', // Default last name
-        profilePic: null, // Default profile picture
-        password: 'magic-link', // Set password for magic link authentication
+        googleId: undefined, 
+        firstName: 'Guest', 
+        lastName: 'User', 
+        profilePic: null, 
+        password: 'magic-link', 
         profilePicKey: null,
       };
       user = await this.usersService.signup(userData);
@@ -109,13 +105,12 @@ export class AuthService {
     } catch (error) {
       console.error('Failed to send magic link email:', error);
       return ApiResponse.success(
-        { rawToken }, // For development/testing
+        { rawToken }, 
         'Magic link generated but email failed to send',
       );
     }
   }
 
-  /** Magic link verify */
   async verifyMagicLink(
     token: string,
     ip: string,
@@ -165,8 +160,9 @@ export class AuthService {
   async getCurrentUser(authHeader: string) {
     try {
       const decoded = verifyAccessToken(authHeader) as any;
+      console.log(decoded.sub as string);
       const user = await this.usersRepository.findById(decoded.sub as string);
-      // console.log(user);
+      console.log(user);
       if (!user) {
         throw new UnauthorizedException('User not found');
       }
@@ -177,7 +173,8 @@ export class AuthService {
     }
   }
 
-  /** Refresh token rotation */
+  
+
   async refreshSession(
     sessionId: string,
     refreshToken: string,

@@ -12,13 +12,10 @@ export class CreateAssetDto {
   @IsString()
   name: string;
 
-  //this will come into proper shape after r2 integration
-  // @IsNotEmpty({ message: 'source link is required' })
   @IsOptional()
   @IsString()
   sourceLink: string;
 
-  // @IsNotEmpty({ message: 'source link key is required' })
   @IsOptional()
   @IsString()
   sourceLinkKey: string;

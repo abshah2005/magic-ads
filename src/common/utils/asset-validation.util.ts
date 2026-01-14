@@ -1,11 +1,10 @@
 import {
   Injectable,
-  NotFoundException,
-  BadRequestException,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { Asset } from 'src/modules/assets/schemas/assets.schema';
+import { AssetQuery } from 'src/shared/interfaces/asset-query-params';
 
 @Injectable()
 export class AssetValidationUtil {
@@ -18,7 +17,7 @@ export class AssetValidationUtil {
     folderId: string,
     excludeAssetId?: string,
   ): Promise<void> {
-    const query: any = {
+    const query: AssetQuery = {
       name: assetName,
       folderId: folderId,
       isDeleted: false,

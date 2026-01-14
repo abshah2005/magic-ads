@@ -4,7 +4,7 @@ export class BaseException extends HttpException {
   constructor(
     message: string,
     statusCode: number = 400,
-    stack?: any,
+    stack?: string,
   ) {
     super(
       {
@@ -32,7 +32,7 @@ export class BaseException extends HttpException {
     return new BaseException(message, 403);
   }
 
-  static internal(message = 'Internal server error', stack?: any) {
+  static internal(message = 'Internal server error', stack?: string) {
     return new BaseException(message, 500, stack);
   }
 }

@@ -1,4 +1,3 @@
-// src/auth/jwt.strategy.ts
 import { Injectable } from '@nestjs/common';
 import { PassportStrategy } from '@nestjs/passport';
 import { ExtractJwt, Strategy } from 'passport-jwt';
@@ -18,7 +17,6 @@ export class JwtMagicLinkStrategy extends PassportStrategy(Strategy, 'magic-jwt'
   }
 
   async validate(payload: any) {
-    // console.log('Decoded JWT Payload:', payload);
     return { userId: payload.sub, email: payload.email };
   }
 }
