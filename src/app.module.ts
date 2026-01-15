@@ -15,6 +15,9 @@ import { EmailModule } from './modules/email/email.module';
 import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
 import { R2Service } from './integrations/r2/r2.service';
 import { MediaModule } from './modules/media/media.module';
+import { StripeModule } from './integrations/stripe/stripe.module';
+import { PlanSeeder } from './modules/plans/scripts/initialize-plans';
+import { PlansModule } from './modules/plans/plans.module';
 @Module({
   imports: [
     ConfigModule.forRoot({
@@ -33,9 +36,10 @@ import { MediaModule } from './modules/media/media.module';
         limit: 100, 
       },
     ]),
-
+    StripeModule,
     DatabaseModule,
     AssetsModule,
+    PlansModule,
     CommonModule,
     EmailModule,
     AdsModule,
@@ -60,6 +64,7 @@ import { MediaModule } from './modules/media/media.module';
       useClass: ThrottlerGuard,
     },
     R2Service,
+    PlanSeeder
   ],
 })
 export class AppModule {}
