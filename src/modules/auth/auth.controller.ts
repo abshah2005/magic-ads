@@ -40,7 +40,6 @@ export class AuthController {
     );
   }
 
-
   @Get('me')
   async getCurrentUser(@User() user) {
     const workspaceCount = await this.workspaceRepository
@@ -62,6 +61,7 @@ export class AuthController {
     return this.authService.googleSignupOrLogin(token);
   }
 
+  /** Refresh session */
   @Public()
   @Post('refresh-session')
   @HttpCode(HttpStatus.OK)
@@ -72,3 +72,4 @@ export class AuthController {
     return this.authService.refreshSession(sessionId, refreshToken);
   }
 }
+

@@ -19,8 +19,7 @@ import * as crypto from 'crypto';
 import { UsersRepository } from '../users/users.repository';
 import { ApiResponse } from 'src/common/responses/api-response';
 import { EmailService } from '../email/email.service';
-
-
+import { JwtPayload } from 'src/shared/interfaces/jwt-payload';
 
 @Injectable()
 export class AuthService {
@@ -60,7 +59,11 @@ export class AuthService {
       userAgent: '',
     });
 
-    const accessToken = signAccessToken({ sub: user._id, email: user.email });
+   
+    const accessToken = signAccessToken({
+      sub: user?._id?.toString(), // ensure it's a string
+      email: user?.email,
+    });
     const responseData = {
       user,
       accessToken,
@@ -71,19 +74,17 @@ export class AuthService {
     return ApiResponse.success(responseData, 'Logged in via Google OAuth');
   }
 
-  async requestMagicLink(
-    email: string,
-  ): Promise<ApiResponse> {
+  async requestMagicLink(email: string): Promise<ApiResponse> {
     let user = await this.usersService.findByEmail(email);
     if (!user) {
       const userData: CreateUserDto = {
-        username: email.split('@')[0], 
+        username: email.split('@')[0], // Use email prefix as default username
         email: email,
-        googleId: undefined, 
-        firstName: 'Guest', 
-        lastName: 'User', 
-        profilePic: null, 
-        password: 'magic-link', 
+        googleId: undefined, // No Google ID for magic link signup
+        firstName: 'Guest', // Default first name
+        lastName: 'User', // Default last name
+        profilePic: null, // Default profile picture
+        password: 'magic-link', // Set password for magic link authentication
         profilePicKey: null,
       };
       user = await this.usersService.signup(userData);
@@ -91,7 +92,7 @@ export class AuthService {
 
     const rawToken = crypto.randomBytes(32).toString('hex');
     const tokenHash = await hashToken(rawToken);
-    const expiresAt = new Date(Date.now() + 1000 * 60 * 15); // 15 min
+    const expiresAt = new Date(Date.now() + 1000 * 60 * 15); 
     await this.authRepository.createMagicLink(email, tokenHash, expiresAt);
     console.log(rawToken);
 
@@ -105,7 +106,7 @@ export class AuthService {
     } catch (error) {
       console.error('Failed to send magic link email:', error);
       return ApiResponse.success(
-        { rawToken }, 
+        { rawToken }, // For development/testing
         'Magic link generated but email failed to send',
       );
     }
@@ -146,7 +147,11 @@ export class AuthService {
       ip,
     });
 
-    const accessToken = signAccessToken({ sub: user._id, email: user.email });
+    
+    const accessToken = signAccessToken({
+      sub: user?._id?.toString(), 
+      email: user?.email,
+    });
     const responseData = {
       user,
       accessToken,
@@ -159,10 +164,8 @@ export class AuthService {
 
   async getCurrentUser(authHeader: string) {
     try {
-      const decoded = verifyAccessToken(authHeader) as any;
-      console.log(decoded.sub as string);
+      const decoded = verifyAccessToken(authHeader) as JwtPayload;
       const user = await this.usersRepository.findById(decoded.sub as string);
-      console.log(user);
       if (!user) {
         throw new UnauthorizedException('User not found');
       }
@@ -173,8 +176,7 @@ export class AuthService {
     }
   }
 
-  
-
+  /** Refresh token rotation */
   async refreshSession(
     sessionId: string,
     refreshToken: string,
@@ -195,7 +197,10 @@ export class AuthService {
     await session.save();
 
     const user = await this.usersRepository.findById(session.userId.toString());
-    const accessToken = signAccessToken({ sub: user?._id, email: user?.email });
+    const accessToken = signAccessToken({
+      sub: user!._id.toString(), 
+      email: user!.email,
+    });
 
     const responseData = { accessToken, newRefreshToken };
     return ApiResponse.success(responseData, 'Session refreshed successfully');
