@@ -1,7 +1,8 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
-import { Plan, PlanInterval, PlanType, } from '../schemas/plans.schema';
+import { Plan } from '../schemas/plans.schema';
+import { PlanInterval, PlanType} from "src/shared/enums/plans.enum"
 
 @Injectable()
 export class PlanSeeder implements OnModuleInit {

@@ -1,18 +1,9 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document, Schema as MongooseSchema } from 'mongoose';
+import { PlanInterval, PlanType } from 'src/shared/enums/plans.enum';
 
 export type PlanDocument = Plan & Document;
 
-export enum PlanInterval {
-  MONTHLY = 'monthly',
-  ANNUAL = 'annual',
-}
-
-export enum PlanType {
-  STARTER = 'starter',
-  PRO = 'pro',
-  ENTERPRISE = 'enterprise',
-}
 
 @Schema({ timestamps: true })
 export class Plan {

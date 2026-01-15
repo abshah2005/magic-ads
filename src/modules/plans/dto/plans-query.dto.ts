@@ -1,6 +1,7 @@
 import { IsOptional, IsString, IsNumber, IsEnum, IsBoolean } from 'class-validator';
 import { Type, Transform } from 'class-transformer';
-import { PlanInterval, PlanType } from '../schemas/plans.schema';
+import { PlanInterval, PlanType } from 'src/shared/enums/plans.enum';
+
 
 export class PlanQueryDto {
   @IsOptional()

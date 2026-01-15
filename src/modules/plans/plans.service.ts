@@ -4,9 +4,7 @@ import { CreatePlanDto } from './dto/create-plan.dto';
 import { UpdatePlanDto } from './dto/update-plan.dto';
 import { PlanItemDto } from './dto/plans-list.dto';
 import { PlanDocument } from './schemas/plans.schema';
-import { PaginationUtil } from 'src/common/utils/pagination.util';
 import { ApiResponse } from 'src/common/responses/api-response';
-import { PlanQueryDto } from './dto/plans-query.dto';
 
 @Injectable()
 export class PlansService {
@@ -17,19 +15,18 @@ export class PlansService {
     return ApiResponse.success(plan, 'Plan created successfully', 201);
   }
 
-  async findAll(queryParams: PlanQueryDto): Promise<ApiResponse> {
-    PaginationUtil.validate(queryParams.page || 1, queryParams.limit || 10);
 
-    const result = await this.planRepository.findAll(queryParams);
-    const mappedData = result.data.map((plan) => this.mapToPlanItemDto(plan));
+
+  async findAll(): Promise<ApiResponse> {
+
+   const plans = await this.planRepository.getAll();
+  const mappedData=plans.map(plan => this.mapToPlanItemDto(plan));
     
-    const meta = PaginationUtil.getMeta(result.page, result.limit, result.total);
 
     return ApiResponse.success(
       mappedData,
       'Plans fetched successfully',
       200,
-      meta,
     );
   }
 

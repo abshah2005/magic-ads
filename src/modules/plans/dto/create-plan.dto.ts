@@ -8,7 +8,7 @@ import {
   IsOptional,
   Min,
 } from 'class-validator';
-import { PlanInterval, PlanType } from '../schemas/plans.schema';
+import { PlanInterval, PlanType } from '../../../shared/enums/plans.enum';
 
 export class CreatePlanDto {
   @IsNotEmpty({ message: 'Name is required' })

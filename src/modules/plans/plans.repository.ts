@@ -28,92 +28,9 @@ export class PlanRepository {
     return plan.save();
   }
 
-  async findAll(queryParams: {
-    page?: number;
-    limit?: number;
-    search?: string;
-    type?: string;
-    interval?: string;
-    isPopular?: boolean;
-    isActive?: boolean;
-    sortBy?: string;
-    sortOrder?: 'asc' | 'desc';
-  }): Promise<{
-    data: PlanDocument[];
-    total: number;
-    page: number;
-    limit: number;
-    totalPages: number;
-  }> {
-    const {
-      page = 1,
-      limit = 10,
-      search,
-      type,
-      interval,
-      isPopular,
-      isActive,
-      sortBy = 'sortOrder',
-      sortOrder = 'asc',
-    } = queryParams;
-
-    const skip = (page - 1) * limit;
-    const query: any = {};
-
-    // Search functionality
-    if (search) {
-      query.$or = [
-        { name: { $regex: search, $options: 'i' } },
-        { description: { $regex: search, $options: 'i' } },
-      ];
-    }
-
-    // Type filtering
-    if (type) {
-      query.type = type;
-    }
-
-    // Interval filtering
-    if (interval) {
-      query.interval = interval;
-    }
-
-    // Popular filtering
-    if (isPopular !== undefined) {
-      query.isPopular = isPopular;
-    }
-
-    // Active filtering
-    if (isActive !== undefined) {
-      query.isActive = isActive;
-    }
-
-    // Sorting
-    const sortOptions: any = {};
-    const validSortFields = ['name', 'price', 'sortOrder', 'createdAt', 'updatedAt'];
-    const sortField = validSortFields.includes(sortBy) ? sortBy : 'sortOrder';
-    sortOptions[sortField] = sortOrder === 'asc' ? 1 : -1;
-
-    const [data, total] = await Promise.all([
-      this.planModel
-        .find(query)
-        .sort(sortOptions)
-        .skip(skip)
-        .limit(limit)
-        .exec(),
-      this.planModel.countDocuments(query),
-    ]);
-
-    const totalPages = Math.ceil(total / limit);
-
-    return {
-      data,
-      total,
-      page,
-      limit,
-      totalPages,
-    };
-  }
+  async getAll(): Promise<PlanDocument[]> {
+  return this.planModel.find().exec();
+}
 
   async findById(id: string): Promise<PlanDocument | null> {
     return this.planModel.findById(id).exec();

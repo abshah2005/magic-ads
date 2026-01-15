@@ -15,7 +15,7 @@ import { PlansService } from './plans.service';
 import { CreatePlanDto } from './dto/create-plan.dto';
 import { UpdatePlanDto } from './dto/update-plan.dto';
 import { ApiResponse } from 'src/common/responses/api-response';
-import { PlanQueryDto } from './dto/plans-query.dto';
+import { Public } from 'src/common/decorators/public.decorator';
 
 @Controller('plans')
 export class PlansController {
@@ -27,9 +27,10 @@ export class PlansController {
     return this.plansService.create(createPlanDto);
   }
 
+  @Public()
   @Get()
-  async findAll(@Query() queryParams: PlanQueryDto): Promise<ApiResponse> {
-    return this.plansService.findAll(queryParams);
+  async findAll(): Promise<ApiResponse> {
+    return this.plansService.findAll();
   }
 
   @Get('active')
