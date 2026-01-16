@@ -29,7 +29,7 @@ export class SubscriptionController {
   ): Promise<ApiResponse> {
     const userId = user._id;
     if (!userId) {
-      throw new BadRequestException('User ID not found');
+      throw new BadRequestException('User not found');
     }
 
     return this.subscriptionService.createCheckoutSession(
@@ -62,7 +62,7 @@ export class SubscriptionController {
   async getUserSubscription(@User() user): Promise<ApiResponse> {
     const userId = user._id;
     if (!userId) {
-      throw new BadRequestException('User ID not found');
+      throw new BadRequestException('User not found');
     }
 
     return this.subscriptionService.getUserSubscription(userId);
@@ -82,7 +82,7 @@ export class SubscriptionController {
 async getBillingHistory(@User() user): Promise<ApiResponse> {
   const userId = user._id;
   if (!userId) {
-    throw new BadRequestException('User ID not found');
+    throw new BadRequestException('User not found');
   }
 
   return this.subscriptionService.getBillingHistory(userId);
@@ -95,11 +95,11 @@ async getBillingHistory(@User() user): Promise<ApiResponse> {
   ): Promise<ApiResponse> {
     const userId = user._id;
     if (!userId) {
-      throw new BadRequestException('User ID not found');
+      throw new BadRequestException('User not found');
     }
 
     if (!planId) {
-      throw new BadRequestException('Plan ID is required');
+      throw new BadRequestException('Plan is required');
     }
 
     return this.subscriptionService.updateSubscription(userId, planId);

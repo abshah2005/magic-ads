@@ -26,24 +26,18 @@ export class SubscriptionRepository {
   ): Promise<SubscriptionDocument | null> {
     return this.subscriptionModel
       .findOne({ stripeSubscriptionId })
-      // .populate('userId')
-      // .populate('planId')
       .exec();
   }
 
   async findByUserId(userId: string): Promise<SubscriptionDocument | null> {
     return this.subscriptionModel
       .findOne({ userId, isActive: true })
-      // .populate('userId')
-      // .populate('planId')
       .exec();
   }
 
   async findAllByUserId(userId: string): Promise<SubscriptionDocument[]> {
     return this.subscriptionModel
       .find({ userId })
-      // .populate('userId')
-      // .populate('planId')
       .exec();
   }
 
@@ -53,8 +47,6 @@ export class SubscriptionRepository {
   ): Promise<SubscriptionDocument | null> {
     return this.subscriptionModel
       .findByIdAndUpdate(id, updateData, { new: true })
-      // .populate('userId')
-      // .populate('planId')
       .exec();
   }
 
@@ -64,8 +56,6 @@ export class SubscriptionRepository {
   ): Promise<SubscriptionDocument | null> {
     return this.subscriptionModel
       .findOneAndUpdate({ stripeSubscriptionId }, updateData, { new: true })
-      // .populate('userId')
-      // .populate('planId')
       .exec();
   }
 
@@ -85,16 +75,12 @@ export class SubscriptionRepository {
         },
         { new: true },
       )
-      // .populate('userId')
-      // .populate('planId')
       .exec();
   }
 
   async findAllActive(): Promise<SubscriptionDocument[]> {
     return this.subscriptionModel
       .find({ isActive: true, status: SubscriptionStatus.ACTIVE })
-      // .populate('userId')
-      // .populate('planId')
       .exec();
   }
 
