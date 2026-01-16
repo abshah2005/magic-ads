@@ -1,0 +1,80 @@
+import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
+import { Document, Schema as MongooseSchema } from 'mongoose';
+
+export type SubscriptionDocument = Subscription & Document;
+
+export enum SubscriptionStatus {
+  ACTIVE = 'active',
+  CANCELED = 'canceled',
+  PAST_DUE = 'past_due',
+  UNPAID = 'unpaid',
+  TRIALING = 'trialing',
+  INCOMPLETE = 'incomplete',
+  INCOMPLETE_EXPIRED = 'incomplete_expired',
+}
+
+@Schema({ timestamps: true })
+export class Subscription {
+  @Prop({ required: true })
+  stripeSubscriptionId: string;
+
+  @Prop({ required: true })
+  stripeCustomerId: string;
+
+  @Prop({
+    required: true,
+    type: MongooseSchema.Types.ObjectId,
+    ref: 'User',
+  })
+  userId: MongooseSchema.Types.ObjectId;
+
+  @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'Plan', required: true })
+  planId: string;
+
+  @Prop({ required: true })
+  stripePriceId: string;
+
+  @Prop({ required: true })
+  stripeProductId: string;
+
+  @Prop({ required: true, enum: SubscriptionStatus })
+  status: SubscriptionStatus;
+
+  @Prop({ type: Date, default: null })
+  currentPeriodStart?: Date;
+
+  @Prop({ type: Date, default: null })
+  currentPeriodEnd?: Date;
+
+  @Prop({ type: Boolean, default: null })
+  cancelAtPeriodEnd?: boolean;
+
+  @Prop({ type: Date, default: null })
+  canceledAt?: Date;
+
+  @Prop({ type: Date, default: null })
+  trialStart?: Date;
+
+  @Prop({ type: Date, default: null })
+  trialEnd?: Date;
+
+  @Prop({ type: Object, default: null })
+  latestInvoice?: Record<string, any>;
+
+  @Prop({ default: true })
+  isActive: boolean;
+
+  @Prop()
+  createdAt: Date;
+
+  @Prop()
+  updatedAt: Date;
+}
+
+export const SubscriptionSchema = SchemaFactory.createForClass(Subscription);
+
+SubscriptionSchema.index({ userId: 1 });
+SubscriptionSchema.index({ stripeSubscriptionId: 1 }, { unique: true });
+SubscriptionSchema.index({ stripeCustomerId: 1 });
+SubscriptionSchema.index({ status: 1 });
+SubscriptionSchema.set('versionKey', false);

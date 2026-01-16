@@ -14,6 +14,6 @@ import { PlanRepository } from './plans.repository';
     PlansService,
     PlanRepository,
   ],
-  exports: [PlansService,MongooseModule],
+  exports: [PlansService,MongooseModule,PlanRepository],
 })
 export class PlansModule {}

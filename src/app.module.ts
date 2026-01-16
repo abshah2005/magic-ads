@@ -1,4 +1,4 @@
-import { Module, ValidationPipe } from '@nestjs/common';
+import { Module, ValidationPipe, MiddlewareConsumer } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import Joi from 'joi';
 import { DatabaseModule } from './integrations/mongodb/mongodb.module';
@@ -18,6 +18,7 @@ import { MediaModule } from './modules/media/media.module';
 import { StripeModule } from './integrations/stripe/stripe.module';
 import { PlanSeeder } from './modules/plans/scripts/initialize-plans';
 import { PlansModule } from './modules/plans/plans.module';
+import { SubscriptionModule } from './modules/subscriptions/subscriptions.module';
 @Module({
   imports: [
     ConfigModule.forRoot({
@@ -40,6 +41,7 @@ import { PlansModule } from './modules/plans/plans.module';
     DatabaseModule,
     AssetsModule,
     PlansModule,
+    SubscriptionModule,
     CommonModule,
     EmailModule,
     AdsModule,
@@ -67,4 +69,6 @@ import { PlansModule } from './modules/plans/plans.module';
     PlanSeeder
   ],
 })
-export class AppModule {}
+export class AppModule {
+
+}
