@@ -8,6 +8,7 @@ import {
   HttpCode,
   HttpStatus,
   BadRequestException,
+  Put,
 } from '@nestjs/common';
 import { SubscriptionService } from './subscriptions.service';
 import { CreateSubscriptionDto } from './dto/create-subscription.dto';
@@ -77,8 +78,17 @@ export class SubscriptionController {
     return this.subscriptionService.cancelSubscription(userId);
   }
 
+  @Get('billing-history')
+async getBillingHistory(@User() user): Promise<ApiResponse> {
+  const userId = user._id;
+  if (!userId) {
+    throw new BadRequestException('User ID not found');
+  }
+
+  return this.subscriptionService.getBillingHistory(userId);
+}
   
-  @Post('update')
+  @Put('update')
   async updateSubscription(
     @Body('planId') planId: string,
     @User() user,

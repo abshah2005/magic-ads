@@ -26,7 +26,7 @@ export class Subscription {
     type: MongooseSchema.Types.ObjectId,
     ref: 'User',
   })
-  userId: MongooseSchema.Types.ObjectId;
+  userId: string;
 
   @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'Plan', required: true })
   planId: string;

@@ -17,6 +17,7 @@ import { ApiResponse } from 'src/common/responses/api-response';
 import { PlanRepository } from '../plans/plans.repository';
 import { UsersRepository } from '../users/users.repository';
 import Webhooks from 'stripe';
+import { BillingHistory } from './dto/billing-history.type';
 
 @Injectable()
 export class SubscriptionService {
@@ -42,7 +43,6 @@ export class SubscriptionService {
     createSubscriptionDto: CreateSubscriptionDto,
   ): Promise<ApiResponse> {
     try {
-      // Get plan details
       const plan = await this.plansRepository.findById(
         createSubscriptionDto.planId,
       );
@@ -51,7 +51,6 @@ export class SubscriptionService {
         throw new NotFoundException('Plan not found');
       }
 
-      // Check if user already has active subscription
       const existingSubscription =
         await this.subscriptionRepository.findByUserId(userId);
 
@@ -61,12 +60,9 @@ export class SubscriptionService {
         );
       }
 
-      // Note: You need to fetch actual user email from your user service
       const userFound = await this.userRepository.findById(userId);
 
-      const userEmail = userFound?.email; // TODO: Replace with actual user email fetch
-
-      // Create or retrieve Stripe customer
+      const userEmail = userFound?.email;
       let customerId: string;
       const customers = await this.stripe.customers.list({
         email: userEmail,
@@ -134,6 +130,42 @@ export class SubscriptionService {
     }
   }
 
+  
+    async getBillingHistory(userId: string): Promise<ApiResponse> {
+    const subscription = await this.subscriptionRepository.findByUserId(userId);
+
+    if (!subscription) {
+      throw new NotFoundException('No active subscription found for the user');
+    }
+
+    try {
+      const invoices = await this.stripe.invoices.list({
+        customer: subscription.stripeCustomerId,
+        limit: 10,
+      });
+
+      const billingHistory: BillingHistory = invoices.data.map((invoice) => ({
+        id: invoice.id,
+        amountPaid: invoice.amount_paid / 100,
+        currency: invoice.currency.toUpperCase(),
+        status: invoice.status,
+        description: invoice.lines.data[0]?.description || 'No description',
+        created: new Date(invoice.created * 1000), 
+        dueDate: invoice.due_date ? new Date(invoice.due_date * 1000) : null,
+      }));
+
+      return ApiResponse.success(
+        billingHistory,
+        'Billing history fetched successfully',
+        200,
+      );
+    } catch (error) {
+      throw new InternalServerErrorException(
+        `Failed to fetch billing history: ${error.message}`,
+      );
+    }
+  }
+
   async handleWebhook(
     payload: Buffer,
     signature: string,
@@ -161,11 +193,15 @@ export class SubscriptionService {
           break;
 
         case 'customer.subscription.created':
-        case 'customer.subscription.updated':
-          await this.handleSubscriptionUpdated(
+          await this.handleSubscriptionCreated(
             event.data.object as Stripe.Subscription,
           );
           break;
+        // case 'customer.subscription.updated':
+        //   await this.handleSubscriptionUpdated(
+        //     event.data.object as Stripe.Subscription,
+        //   );
+        //   break;
 
         case 'customer.subscription.deleted':
           await this.handleSubscriptionDeleted(
@@ -194,96 +230,180 @@ export class SubscriptionService {
 
   private async handleCheckoutSessionCompleted(
     session: Stripe.Checkout.Session,
-  ) {
-    if (!session.subscription || typeof session.subscription !== 'string') {
-      throw new Error('No subscription found in session');
+  ) {}
+
+  async updateSubscription(
+    userId: string,
+    newPlanId: string,
+  ): Promise<ApiResponse> {
+    const currentSubscription =
+      await this.subscriptionRepository.findByUserId(userId);
+
+    if (!currentSubscription) {
+      throw new NotFoundException('No active subscription found');
     }
 
-    const subscription = await this.stripe.subscriptions.retrieve(
-      session.subscription,
+    const newPlan = await this.plansRepository.findById(newPlanId);
+
+    if (!newPlan) {
+      throw new NotFoundException('New plan not found');
+    }
+
+    const stripeSubscription = await this.stripe.subscriptions.retrieve(
+      currentSubscription.stripeSubscriptionId,
     );
+    const subscriptionItemId = stripeSubscription.items.data[0].id;
 
-    const latestInvoice =
-      typeof subscription.latest_invoice === 'string'
-        ? { id: subscription.latest_invoice }
-        : subscription.latest_invoice || {};
-
-    const item = subscription.items.data[0];
+    const updatedSubscription = await this.stripe.subscriptions.update(
+      currentSubscription.stripeSubscriptionId,
+      {
+        items: [
+          {
+            id: subscriptionItemId,
+            price: newPlan.stripePriceId,
+          },
+        ],
+        proration_behavior: 'create_prorations', // Enable proration
+        metadata: {
+          planId: newPlanId,
+        },
+      },
+    );
+    const item = updatedSubscription.items.data[0];
 
     if (!item?.current_period_start || !item?.current_period_end) {
       throw new Error('Subscription period not available yet');
     }
 
-    const foundUser = await this.userRepository.findById(
-      subscription.metadata?.userId ?? session.metadata?.userId,
+    // Adjust user credits based on the plan change and proration
+    await this.adjustUserCredits(
+      userId,
+      currentSubscription.planId,
+      newPlanId,
+      new Date(item.current_period_end * 1000),
     );
 
-    await this.subscriptionRepository.create({
-      stripeSubscriptionId: subscription.id,
-      stripeCustomerId:
-        typeof subscription.customer === 'string'
-          ? subscription.customer
-          : subscription.customer.id,
-      userId: foundUser?.id,
-      planId: session.metadata?.planId,
-      stripePriceId: subscription.items.data[0].price.id,
-      stripeProductId:
-        typeof subscription.items.data[0].price.product === 'string'
-          ? subscription.items.data[0].price.product
-          : subscription.items.data[0].price.product.id,
-      status: subscription.status as SubscriptionStatus,
-      currentPeriodStart: new Date(item.current_period_start * 1000),
-      currentPeriodEnd: new Date(item.current_period_end * 1000),
-      cancelAtPeriodEnd: subscription.cancel_at_period_end,
-      canceledAt: subscription.canceled_at
-        ? new Date(subscription.canceled_at * 1000)
-        : undefined,
-      trialStart: subscription.trial_start
-        ? new Date(subscription.trial_start * 1000)
-        : undefined,
-      trialEnd: subscription.trial_end
-        ? new Date(subscription.trial_end * 1000)
-        : undefined,
-      latestInvoice,
-      isActive: true,
-    });
+    // Update the subscription in the database
+    const updated = await this.subscriptionRepository.update(
+      currentSubscription._id.toString(),
+      {
+        planId: newPlanId,
+        stripePriceId: newPlan.stripePriceId,
+        stripeProductId: newPlan.stripeProductId,
+        currentPeriodStart: new Date(item.current_period_start * 1000),
+        currentPeriodEnd: new Date(item.current_period_end * 1000),
+      },
+    );
+
+    return ApiResponse.success(
+      updated,
+      'Subscription updated successfully with proration applied',
+      200,
+    );
   }
 
   private async handleSubscriptionUpdated(subscription: Stripe.Subscription) {
-    const latestInvoice =
-      typeof subscription.latest_invoice === 'string'
-        ? { id: subscription.latest_invoice }
-        : subscription.latest_invoice || {};
+    const userId = subscription.metadata?.userId;
+    const newPlanId = subscription.metadata?.planId;
+
+    if (!userId || !newPlanId) {
+      throw new Error('User ID or Plan ID is missing in subscription metadata');
+    }
+
+    const currentSubscription =
+      await this.subscriptionRepository.findByStripeSubscriptionId(
+        subscription.id,
+      );
+
+    if (!currentSubscription) {
+      throw new NotFoundException('Subscription not found');
+    }
 
     const item = subscription.items.data[0];
 
-    if (!item?.current_period_start || !item?.current_period_end) {
-      throw new Error('Subscription period not available yet');
-    }
+    await this.adjustUserCredits(
+      userId,
+      currentSubscription.planId,
+      newPlanId,
+      new Date(item.current_period_end * 1000),
+    );
 
+    // Update subscription in the database
     await this.subscriptionRepository.updateByStripeSubscriptionId(
       subscription.id,
       {
+        planId: newPlanId,
+        stripePriceId: item.price.id,
+        stripeProductId: item.price.product as string,
         status: subscription.status as SubscriptionStatus,
         currentPeriodStart: new Date(item.current_period_start * 1000),
         currentPeriodEnd: new Date(item.current_period_end * 1000),
-        cancelAtPeriodEnd: subscription.cancel_at_period_end,
-        canceledAt: subscription.canceled_at
-          ? new Date(subscription.canceled_at * 1000)
-          : undefined,
-        trialStart: subscription.trial_start
-          ? new Date(subscription.trial_start * 1000)
-          : undefined,
-        trialEnd: subscription.trial_end
-          ? new Date(subscription.trial_end * 1000)
-          : undefined,
-        latestInvoice,
-        isActive: subscription.status === SubscriptionStatus.ACTIVE,
       },
     );
   }
 
+  private async handleSubscriptionCreated(subscription: Stripe.Subscription) {
+    const userId = subscription.metadata?.userId;
+    const planId = subscription.metadata?.planId;
+
+    const item = subscription.items.data[0];
+
+    if (!item?.current_period_start || !item?.current_period_end) {
+      throw new Error('Subscription period not available yet');
+    }
+
+    if (!userId || !planId) {
+      throw new Error('User ID or Plan ID is missing in subscription metadata');
+    }
+
+    const plan = await this.plansRepository.findById(planId);
+    if (!plan) {
+      throw new NotFoundException('Plan not found');
+    }
+
+    const user = await this.userRepository.findById(userId);
+    if (!user?._id) {
+      throw new NotFoundException('User not found');
+    }
+
+    // Add credits to the user
+    await this.userRepository.updateUser(userId, {
+      creditsAvailable: user.creditsAvailable + plan.aiCredits,
+    });
+
+    // Save subscription in the database
+    await this.subscriptionRepository.create({
+      stripeSubscriptionId: subscription.id,
+      stripeCustomerId: subscription.customer as string,
+      userId: userId,
+      planId,
+      stripePriceId: subscription.items.data[0].price.id,
+      stripeProductId: subscription.items.data[0].price.product as string,
+      status: subscription.status as SubscriptionStatus,
+      currentPeriodStart: new Date(item.current_period_start * 1000),
+      currentPeriodEnd: new Date(item.current_period_end * 1000),
+      isActive: true,
+    });
+  }
+
   private async handleSubscriptionDeleted(subscription: Stripe.Subscription) {
+    const userId = subscription.metadata?.userId;
+
+    if (!userId) {
+      throw new Error('User ID is missing in subscription metadata');
+    }
+
+    const user = await this.userRepository.findById(userId);
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    // Deduct all remaining credits
+    await this.userRepository.updateUser(userId, {
+      creditsAvailable: 0,
+    });
+
+    // Update subscription status in the database
     await this.subscriptionRepository.updateByStripeSubscriptionId(
       subscription.id,
       {
@@ -303,8 +423,6 @@ export class SubscriptionService {
     // Handle failed payment
     console.log('Payment failed for invoice:', invoice.id);
   }
-
-  
 
   async getUserSubscription(userId: string): Promise<ApiResponse> {
     const subscription = await this.subscriptionRepository.findByUserId(userId);
@@ -384,65 +502,57 @@ export class SubscriptionService {
     }
   }
 
-  async updateSubscription(
+  private async adjustUserCredits(
     userId: string,
+    currentPlanId: string,
     newPlanId: string,
-  ): Promise<ApiResponse> {
-    const currentSubscription =
-      await this.subscriptionRepository.findByUserId(userId);
-
-    if (!currentSubscription) {
-      throw new NotFoundException('No active subscription found');
-    }
-
+    currentPeriodEnd: Date,
+  ): Promise<void> {
+    const currentPlan = await this.plansRepository.findById(currentPlanId);
     const newPlan = await this.plansRepository.findById(newPlanId);
 
-    if (!newPlan) {
-      throw new NotFoundException('New plan not found');
+    if (!currentPlan || !newPlan) {
+      throw new NotFoundException('Plan details not found');
     }
 
-  
-    const stripeSubscription = await this.stripe.subscriptions.retrieve(
-      currentSubscription.stripeSubscriptionId,
-    );
-    const subscriptionItemId = stripeSubscription.items.data[0].id;
-
-    const updatedSubscription = await this.stripe.subscriptions.update(
-      currentSubscription.stripeSubscriptionId,
-      {
-        items: [
-          {
-            id: subscriptionItemId,
-            price: newPlan.stripePriceId,
-          },
-        ],
-        proration_behavior: 'create_prorations',
-        metadata: {
-          planId: newPlanId,
-        },
-      },
-    );
-    const item = updatedSubscription.items.data[0];
-
-    if (!item?.current_period_start || !item?.current_period_end) {
-      throw new Error('Subscription period not available yet');
+    const user = await this.userRepository.findById(userId);
+    if (!user) {
+      throw new NotFoundException('User not found');
     }
 
-    const updated = await this.subscriptionRepository.update(
-      currentSubscription._id.toString(),
-      {
-        planId: newPlanId,
-        stripePriceId: newPlan.stripePriceId,
-        stripeProductId: newPlan.stripeProductId,
-        currentPeriodStart: new Date(item.current_period_start * 1000),
-        currentPeriodEnd: new Date(item.current_period_end * 1000),
-      },
+    const currentDailyRate = currentPlan.aiCredits / 30;
+    const newDailyRate = newPlan.aiCredits / 30;
+
+    const today = new Date();
+    const remainingDays = Math.ceil(
+      (currentPeriodEnd.getTime() - today.getTime()) / (1000 * 60 * 60 * 24),
     );
 
-    return ApiResponse.success(
-      updated,
-      'Subscription updated successfully',
-      200,
-    );
+    if (remainingDays < 0) {
+      throw new BadRequestException('Billing cycle has already ended');
+    }
+
+    const unusedCredits = Math.floor(currentDailyRate * remainingDays);
+
+    const additionalCredits = Math.floor(newDailyRate * remainingDays);
+
+    const creditAdjustment = additionalCredits - unusedCredits;
+
+    const finalCredits = user.creditsAvailable + creditAdjustment;
+
+    console.log('Current Plan Credits:', currentPlan.aiCredits);
+    console.log('New Plan Credits:', newPlan.aiCredits);
+    console.log('Current Daily Rate:', currentDailyRate);
+    console.log('New Daily Rate:', newDailyRate);
+    console.log('Remaining Days:', remainingDays);
+    console.log('Unused Credits:', unusedCredits);
+    console.log('Additional Credits:', additionalCredits);
+    console.log('Net Credit Adjustment:', creditAdjustment);
+    console.log('User Current Credits (Before Update):', user.creditsAvailable);
+    console.log('User Final Credits (After Update):', finalCredits);
+
+    await this.userRepository.updateUser(userId, {
+      creditsAvailable: finalCredits,
+    });
   }
 }

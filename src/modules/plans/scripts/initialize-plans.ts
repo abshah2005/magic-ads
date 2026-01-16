@@ -51,8 +51,8 @@ export class PlanSeeder implements OnModuleInit {
             description: 'Perfect for getting started with AI-powered ad creation',
             price: 0,
             interval: PlanInterval.ANNUAL,
-            stripePriceId: 'price_starter_annual',
-            stripeProductId: 'prod_starter',
+            stripePriceId: 'price_1SpqT7C2esy5ycVXYU6RGDjN',
+            stripeProductId: 'prod_TnRLVMihRI429d',
             aiCredits: 1200, // 100 * 12
             activeAdCampaigns: 1,
             assetStorage: 'Up to 3 Uploaded Assets',
@@ -73,8 +73,8 @@ export class PlanSeeder implements OnModuleInit {
             description: 'For growing businesses with advanced ad creation needs',
             price: 29,
             interval: PlanInterval.MONTHLY,
-            stripePriceId: 'price_pro_monthly',
-            stripeProductId: 'prod_pro',
+            stripePriceId: 'price_1SpqTuC2esy5ycVXhJHtikMX',
+            stripeProductId: 'prod_TnRMVQbSMAKfWX',
             aiCredits: 2000,
             activeAdCampaigns: -1, // -1 for unlimited
             assetStorage: '100GB Asset Storage',
@@ -144,8 +144,8 @@ export class PlanSeeder implements OnModuleInit {
             description: 'For large organizations with enterprise requirements',
             price: 990, // 99 * 10 (discounted for annual)
             interval: PlanInterval.ANNUAL,
-            stripePriceId: 'price_enterprise_annual',
-            stripeProductId: 'prod_enterprise',
+            stripePriceId: 'price_1SpqYrC2esy5ycVX7UTbSOVQ',
+            stripeProductId: 'prod_TnRRYifYmvtu62',
             aiCredits: 120000, // 10000 * 12
             activeAdCampaigns: -1,
             assetStorage: 'Unlimited Asset Storage',
