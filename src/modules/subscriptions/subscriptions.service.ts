@@ -20,6 +20,7 @@ import { BillingHistory } from './dto/billing-history.type';
 import { SubscriptionStatus } from './dto/subscription-status.type';
 import { PaginationUtil } from 'src/common/utils/pagination.util';
 import { BillingHistoryQueryDto } from './dto/billing-history-query.dto';
+import { addCredits, consumeCredits, rollbackCredits } from 'src/common/utils/credits.util';
 
 @Injectable()
 export class SubscriptionService {
@@ -130,6 +131,68 @@ export class SubscriptionService {
         `Failed to create checkout session: ${error.message}`,
       );
     }
+  }
+
+
+  async getUserCredits(userId: string): Promise<ApiResponse> {
+    const user = await this.userRepository.findById(userId);
+
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    const data = {
+      userId: user._id.toString(),
+      creditsAvailable: user.creditsAvailable ?? 0,
+      creditsConsumed: user.creditsConsumed ?? 0,
+      totalCredits: (user.creditsAvailable ?? 0) + (user.creditsConsumed ?? 0),
+    };
+
+   
+
+    return ApiResponse.success(data, 'User credits fetched successfully', 200);
+  }
+
+ 
+  async addUserCredits(
+    userId: string,
+    amount: number,
+    reason?: string,
+  ): Promise<ApiResponse> {
+    const newBalance = await addCredits(userId, amount, this.userRepository, reason);
+    return ApiResponse.success(
+      { creditsAvailable: newBalance },
+      `Credits added successfully. Reason: ${reason ?? 'N/A'}`,
+      200,
+    );
+  }
+
+  
+  async consumeUserCredits(
+    userId: string,
+    amount: number,
+    options?: { reason?: string; rollbackOnFail?: boolean },
+  ): Promise<ApiResponse> {
+    const newBalance = await consumeCredits(userId, amount, this.userRepository, options);
+    return ApiResponse.success(
+      { creditsAvailable: newBalance },
+      `Credits consumed successfully. Reason: ${options?.reason ?? 'N/A'}`,
+      200,
+    );
+  }
+
+
+  async rollbackUserCredits(
+    userId: string,
+    amount: number,
+    reason?: string,
+  ): Promise<ApiResponse> {
+    const newBalance = await rollbackCredits(userId, amount, this.userRepository, reason);
+    return ApiResponse.success(
+      { creditsAvailable: newBalance },
+      `Credits rolled back successfully. Reason: ${reason ?? 'N/A'}`,
+      200,
+    );
   }
 
   async getBillingHistory(
@@ -246,9 +309,28 @@ export class SubscriptionService {
     }
   }
 
-  private async handleCheckoutSessionCompleted(
-    session: Stripe.Checkout.Session,
-  ) {}
+  private async handleCheckoutSessionCompleted(session: Stripe.Checkout.Session) {
+    const subscriptionId = session.subscription?.toString();
+    if (!subscriptionId) return;
+
+    const subscription = await this.subscriptionRepository.findByStripeSubscriptionId(subscriptionId);
+    if (!subscription) return;
+
+    // Check if payment_status succeeded
+    if (session.payment_status === 'paid') {
+        await this.subscriptionRepository.updateByStripeSubscriptionId(subscriptionId, {
+            status: SubscriptionStatus.ACTIVE,
+            isActive: true,
+        });
+
+        const plan = await this.plansRepository.findById(subscription.planId);
+        const user = await this.userRepository.findById(subscription.userId);
+        
+    } else {
+        console.log(`Checkout session completed but payment incomplete for subscription ${subscriptionId}`);
+    }
+}
+
 
   async updateSubscription(
     userId: string,
@@ -346,49 +428,25 @@ export class SubscriptionService {
     }
   }
 
+
   private async handleSubscriptionCreated(subscription: Stripe.Subscription) {
-    const userId = subscription.metadata?.userId;
-    const planId = subscription.metadata?.planId;
+  const userId = subscription.metadata?.userId;
+  const planId = subscription.metadata?.planId;
 
-    const item = subscription.items.data[0];
+  if (!userId || !planId) return;
 
-    if (!item?.current_period_start || !item?.current_period_end) {
-      throw new Error('Subscription period not available yet');
-    }
+  await this.subscriptionRepository.create({
+    stripeSubscriptionId: subscription.id,
+    stripeCustomerId: subscription.customer as string,
+    userId,
+    planId,
+    stripePriceId: subscription.items.data[0].price.id,
+    stripeProductId: subscription.items.data[0].price.product as string,
+    status: subscription.status as SubscriptionStatus, // incomplete
+    isActive: false, // 🔴 IMPORTANT
+  });
+}
 
-    if (!userId || !planId) {
-      throw new Error('User ID or Plan ID is missing in subscription metadata');
-    }
-
-    const plan = await this.plansRepository.findById(planId);
-    if (!plan) {
-      throw new NotFoundException('Plan not found');
-    }
-
-    const user = await this.userRepository.findById(userId);
-    if (!user?._id) {
-      throw new NotFoundException('User not found');
-    }
-
-    // Add credits to the user
-    await this.userRepository.updateUser(userId, {
-      creditsAvailable: user.creditsAvailable + plan.aiCredits,
-    });
-
-    // Save subscription in the database
-    await this.subscriptionRepository.create({
-      stripeSubscriptionId: subscription.id,
-      stripeCustomerId: subscription.customer as string,
-      userId: userId,
-      planId,
-      stripePriceId: subscription.items.data[0].price.id,
-      stripeProductId: subscription.items.data[0].price.product as string,
-      status: subscription.status as SubscriptionStatus,
-      currentPeriodStart: new Date(item.current_period_start * 1000),
-      currentPeriodEnd: new Date(item.current_period_end * 1000),
-      isActive: true,
-    });
-  }
 
   private async handleSubscriptionDeleted(subscription: Stripe.Subscription) {
     const userId = subscription.metadata?.userId;
@@ -419,41 +477,100 @@ export class SubscriptionService {
   }
 
   private async handleInvoicePaymentSucceeded(invoice: Stripe.Invoice) {
-    // Update user credits or perform other actions
-    console.log('Payment succeeded for invoice:', invoice.id);
+  const subscriptionId =
+    invoice.parent?.subscription_details?.subscription.toString();
+
+  if (!subscriptionId) return;
+
+  const subscription =
+    await this.subscriptionRepository.findByStripeSubscriptionId(subscriptionId);
+
+  if (!subscription) return;
+
+  const plan = await this.plansRepository.findById(subscription.planId);
+  const user = await this.userRepository.findById(subscription.userId);
+
+  if (!plan || !user) return;
+
+  await this.userRepository.updateUser(user.id, {
+    creditsAvailable: user.creditsAvailable + plan.aiCredits,
+  });
+
+  await this.subscriptionRepository.updateByStripeSubscriptionId(
+    subscriptionId,
+    {
+      status: SubscriptionStatus.ACTIVE,
+      isActive: true,
+      currentPeriodStart: new Date(invoice.period_start * 1000),
+      currentPeriodEnd: new Date(invoice.period_end * 1000),
+    },
+  );
+}
+
+
+private async handleInvoicePaymentFailed(
+  invoice: Stripe.Invoice,
+): Promise<void> {
+  const subscriptionId =
+    invoice.parent?.subscription_details?.subscription.toString()
+
+  if (!subscriptionId) {
+    throw new NotFoundException('Subscription not found');
   }
+
+  const subscription =
+    await this.subscriptionRepository.findByStripeSubscriptionId(
+      subscriptionId,
+    );
+
+  if (!subscription) {
+    throw new NotFoundException('Subscription not found');
+  }
+
+  const attemptCount = invoice.attempt_count ?? 0;
+  const nextAttempt = invoice.next_payment_attempt;
+
+  let newStatus: SubscriptionStatus = SubscriptionStatus.PAST_DUE;
+
+  /**
+   * Stripe rules:
+   * - incomplete  → first payment failed
+   * - past_due    → retrying
+   * - unpaid      → retries exhausted (final)
+   */
+  if (!nextAttempt && attemptCount > 0) {
+    newStatus = SubscriptionStatus.UNPAID;
+  }
+
+  // 4️⃣ Persist status (idempotent)
+  await this.subscriptionRepository.updateByStripeSubscriptionId(
+    subscriptionId,
+    {
+      status: newStatus,
+      isActive: false,
+    },
+  );
+
+  // 5️⃣ Notify user (no side effects)
+  const user = await this.userRepository.findById(subscription.userId);
+  if (user) {
+    console.log(
+      `⚠️ Payment failed for user ${user.email}. Status: ${newStatus}`,
+    );
+    // TODO: send email / push / in-app notification
+  }
+
+  // 6️⃣ If UNPAID → Stripe will auto-cancel (prepare cleanup)
+  if (newStatus === SubscriptionStatus.UNPAID) {
+    console.log(
+      `🚫 Subscription ${subscriptionId} is unpaid and may be canceled by Stripe`,
+    );
+  }
+}
 
  
 
-    private async handleInvoicePaymentFailed(invoice: Stripe.Invoice) {
-    const subscriptionId = invoice.parent?.subscription_details?.subscription.toString() ;
 
-    if (!subscriptionId) {
-      console.error('Invoice has no associated subscription:', invoice.id);
-      return; 
-    }
-
-    const subscription = await this.subscriptionRepository.findByStripeSubscriptionId(
-      subscriptionId,
-    );
-
-    if (!subscription) {
-      throw new NotFoundException('Subscription not found');
-    }
-
-    // Notify the user about the failed payment
-    const user = await this.userRepository.findById(subscription.userId);
-    if (user) {
-      // Send email or notification to the user
-      console.log(`Payment failed for user: ${user.email}`);
-    }
-
-    // Update subscription status to past_due
-    await this.subscriptionRepository.updateByStripeSubscriptionId(
-      subscriptionId,
-      { status: SubscriptionStatus.PAST_DUE },
-    );
-  }
 
   async getUserSubscription(userId: string): Promise<ApiResponse> {
     const subscription = await this.subscriptionRepository.findByUserId(userId);
