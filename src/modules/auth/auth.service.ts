@@ -46,23 +46,36 @@ export class AuthService {
       profilePicKey: null,
     };
 
+    // let user = await this.usersRepository.findByGoogleId(googleUser.googleId);
+    // if (!user) user = await this.usersService.signup(userData);
+
     let user = await this.usersRepository.findByGoogleId(googleUser.googleId);
-    if (!user) user = await this.usersService.signup(userData);
+    if (!user) {
+      try {
+        user = await this.usersService.signup(userData);
+      } catch (err) {
+        // If duplicate error, fetch the user again
+        if (err.code === 11000) {
+          user = await this.usersRepository.findByGoogleId(googleUser.googleId);
+        } else {
+          throw err;
+        }
+      }
+    }
 
     const refreshToken = signRefreshToken();
     const refreshHash = await hashToken(refreshToken);
 
     const session = await this.sessionRepository.createSession({
-      userId: user._id,
+      userId: user!!._id,
       refreshTokenHash: refreshHash,
       expiresAt: new Date(Date.now() + 1000 * 60 * 60 * 24 * 30),
       userAgent: '',
     });
 
-   
     const accessToken = signAccessToken({
-      sub: user?._id?.toString(), // ensure it's a string
-      email: user?.email,
+      sub: user!!._id?.toString(), // ensure it's a string
+      email: user!!.email,
     });
     const responseData = {
       user,
@@ -92,7 +105,7 @@ export class AuthService {
 
     const rawToken = crypto.randomBytes(32).toString('hex');
     const tokenHash = await hashToken(rawToken);
-    const expiresAt = new Date(Date.now() + 1000 * 60 * 15); 
+    const expiresAt = new Date(Date.now() + 1000 * 60 * 15);
     await this.authRepository.createMagicLink(email, tokenHash, expiresAt);
     console.log(rawToken);
 
@@ -147,9 +160,8 @@ export class AuthService {
       ip,
     });
 
-    
     const accessToken = signAccessToken({
-      sub: user?._id?.toString(), 
+      sub: user?._id?.toString(),
       email: user?.email,
     });
     const responseData = {
@@ -198,7 +210,7 @@ export class AuthService {
 
     const user = await this.usersRepository.findById(session.userId.toString());
     const accessToken = signAccessToken({
-      sub: user!._id.toString(), 
+      sub: user!._id.toString(),
       email: user!.email,
     });
 

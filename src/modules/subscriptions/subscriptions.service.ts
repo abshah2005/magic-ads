@@ -323,7 +323,7 @@ export class SubscriptionService {
     userId: string,
     newPlanId: string,
   ): Promise<ApiResponse> {
-       const currentSubscription =
+    const currentSubscription =
       await this.subscriptionRepository.findByUserId(userId);
 
     if (!currentSubscription) {
@@ -336,11 +336,10 @@ export class SubscriptionService {
       throw new NotFoundException('New plan not found');
     }
 
-  const stripeSubscription = await this.stripe.subscriptions.retrieve(
-    currentSubscription.stripeSubscriptionId,
-  );
-  const subscriptionItemId = stripeSubscription.items.data[0].id;
-   
+    const stripeSubscription = await this.stripe.subscriptions.retrieve(
+      currentSubscription.stripeSubscriptionId,
+    );
+    const subscriptionItemId = stripeSubscription.items.data[0].id;
 
     const stripeSub = await this.stripe.subscriptions.update(
       currentSubscription.stripeSubscriptionId,
@@ -355,15 +354,23 @@ export class SubscriptionService {
         metadata: { planId: newPlanId },
       },
     );
+    console.log('checking things');
 
     const item = stripeSub.items.data[0];
     const periodStart = new Date(item.current_period_start * 1000);
     const periodEnd = new Date(item.current_period_end * 1000);
 
+    console.log(
+      'checking things',
+      item.current_period_end,
+      item.current_period_start,
+    );
+
+    console.log('reached propration');
     // 1️⃣ Adjust credits safely using the idempotent utility
     await this.adjustUserCredits(
       userId,
-      currentSubscription.stripeCustomerId,
+      currentSubscription.id,
       currentSubscription.planId,
       newPlanId,
       periodStart,
@@ -373,6 +380,7 @@ export class SubscriptionService {
     );
 
     // 2️⃣ Update subscription DB
+    console.log('reached updation');
     const updated = await this.subscriptionRepository.update(
       currentSubscription._id.toString(),
       {
@@ -603,19 +611,48 @@ export class SubscriptionService {
     invoiceId?: string,
     reason?: string,
   ): Promise<void> {
+    console.log('[adjustUserCredits] Called with:', {
+      userId,
+      subscriptionId,
+      currentPlanId,
+      newPlanId,
+      currentPeriodStart,
+      currentPeriodEnd,
+      invoiceId,
+      reason,
+    });
+
     const user = await this.userRepository.findById(userId);
     const subscription =
       await this.subscriptionRepository.findById(subscriptionId);
 
-    if (!user || !subscription)
+    if (!user || !subscription) {
+      console.error('[adjustUserCredits] User or subscription not found', {
+        user,
+        subscription,
+      });
       throw new NotFoundException('User or subscription not found');
+    }
 
     const currentPlan = await this.plansRepository.findById(currentPlanId);
     const newPlan = await this.plansRepository.findById(newPlanId);
 
-    if (!currentPlan || !newPlan) throw new NotFoundException('Plan not found');
+    if (!currentPlan || !newPlan) {
+      console.error('[adjustUserCredits] Plan not found', {
+        currentPlan,
+        newPlan,
+      });
+      throw new NotFoundException('Plan not found');
+    }
 
-    // 1️⃣ Check if this period + invoice has already been processed
+    console.log('[adjustUserCredits] Fetched user, subscription, plans:', {
+      userEmail: user.email,
+      currentPlanCredits: currentPlan.aiCredits,
+      newPlanCredits: newPlan.aiCredits,
+      creditAdjustmentHistoryLength:
+        subscription.creditAdjustmentHistory?.length,
+    });
+
     const alreadyAdjusted = subscription.creditAdjustmentHistory?.some(
       (entry) =>
         entry.invoiceId === invoiceId ||
@@ -626,32 +663,60 @@ export class SubscriptionService {
 
     if (alreadyAdjusted) {
       console.log(
-        '[Credits] Already adjusted for this period/invoice, skipping.',
+        '[adjustUserCredits] Already adjusted for this period/invoice, skipping.',
+        { invoiceId, currentPeriodStart, currentPeriodEnd, newPlanId },
       );
       return;
     }
 
-    const today = new Date();
-    const remainingDays = Math.ceil(
-      (currentPeriodEnd.getTime() - today.getTime()) / (1000 * 60 * 60 * 24),
-    );
+    let creditAdjustment = 0;
 
-    const currentDailyRate = currentPlan.aiCredits / 30;
-    const newDailyRate = newPlan.aiCredits / 30;
+    if (
+      !subscription.creditAdjustmentHistory ||
+      subscription.creditAdjustmentHistory.length === 0
+    ) {
+      creditAdjustment = newPlan.aiCredits;
+      console.log(
+        '[adjustUserCredits] First invoice/period, granting full plan credits:',
+        creditAdjustment,
+      );
+    } else {
+      const today = new Date();
+      const remainingDays = Math.ceil(
+        (currentPeriodEnd.getTime() - today.getTime()) / (1000 * 60 * 60 * 24),
+      );
 
-    const unusedCredits = Math.floor(currentDailyRate * remainingDays);
-    const additionalCredits = Math.floor(newDailyRate * remainingDays);
+      const currentDailyRate = currentPlan.aiCredits / 30;
+      const newDailyRate = newPlan.aiCredits / 30;
 
-    const creditAdjustment = additionalCredits - unusedCredits;
+      const unusedCredits = Math.floor(currentDailyRate * remainingDays);
+      const additionalCredits = Math.floor(newDailyRate * remainingDays);
 
-    // 2️⃣ Apply the adjustment (can be negative for downgrades)
+      creditAdjustment = additionalCredits - unusedCredits;
+
+      console.log('[adjustUserCredits] Proration calculation:', {
+        today,
+        remainingDays,
+        currentDailyRate,
+        newDailyRate,
+        unusedCredits,
+        additionalCredits,
+        creditAdjustment,
+      });
+    }
+
     const finalCredits = Math.max(user.creditsAvailable + creditAdjustment, 0);
+
+    console.log('[adjustUserCredits] Updating user credits:', {
+      previousCredits: user.creditsAvailable,
+      creditAdjustment,
+      finalCredits,
+    });
 
     await this.userRepository.updateUser(userId, {
       creditsAvailable: finalCredits,
     });
 
-    // 3️⃣ Save adjustment in subscription history
     subscription.creditAdjustmentHistory.push({
       periodStart: currentPeriodStart,
       periodEnd: currentPeriodEnd,
@@ -667,6 +732,14 @@ export class SubscriptionService {
 
     console.log(
       `[Credits] Adjusted ${creditAdjustment} credits for user ${user.email}. New balance: ${finalCredits}`,
+      {
+        userId,
+        subscriptionId,
+        planId: newPlanId,
+        invoiceId,
+        reason,
+        period: { start: currentPeriodStart, end: currentPeriodEnd },
+      },
     );
   }
 
@@ -772,38 +845,45 @@ export class SubscriptionService {
     );
   }
 
-
   private async handleInvoicePaymentSucceeded(invoice: Stripe.Invoice) {
-  const subscriptionId = invoice.parent?.subscription_details?.subscription.toString();
-  if (!subscriptionId) return;
+    const subscriptionId =
+      invoice.parent?.subscription_details?.subscription.toString();
+    if (!subscriptionId) {
+      throw new NotFoundException('Subscription not found');
+    }
 
-  const subscription = await this.subscriptionRepository.findByStripeSubscriptionId(subscriptionId);
-  if (!subscription) return;
+    const subscription =
+      await this.subscriptionRepository.findByStripeSubscriptionId(
+        subscriptionId,
+      );
+    if (!subscription) return;
 
-  const user = await this.userRepository.findById(subscription.userId);
-  const plan = await this.plansRepository.findById(subscription.planId);
-  if (!user || !plan) return;
+    const user = await this.userRepository.findById(subscription.userId);
+    const plan = await this.plansRepository.findById(subscription.planId);
+    if (!user || !plan) return;
 
-  // Only add full plan credits **once per invoice**
-  await this.adjustUserCredits(
-    user.id,
-    subscription._id.toString(),
-    subscription.planId,
-    subscription.planId,
-    new Date(invoice.period_start * 1000),
-    new Date(invoice.period_end * 1000),
-    invoice.id,
-    'Monthly subscription credit addition'
-  );
+    // Only add full plan credits **once per invoice**
+    await this.adjustUserCredits(
+      user.id,
+      subscription._id.toString(),
+      subscription.planId,
+      subscription.planId,
+      new Date(invoice.period_start * 1000),
+      new Date(invoice.period_end * 1000),
+      invoice.id,
+      'Monthly subscription credit addition',
+    );
 
-  await this.subscriptionRepository.updateByStripeSubscriptionId(subscriptionId, {
-    status: SubscriptionStatus.ACTIVE,
-    isActive: true,
-    currentPeriodStart: new Date(invoice.period_start * 1000),
-    currentPeriodEnd: new Date(invoice.period_end * 1000),
-  });
-}
-
+    await this.subscriptionRepository.updateByStripeSubscriptionId(
+      subscriptionId,
+      {
+        status: SubscriptionStatus.ACTIVE,
+        isActive: true,
+        currentPeriodStart: new Date(invoice.period_start * 1000),
+        currentPeriodEnd: new Date(invoice.period_end * 1000),
+      },
+    );
+  }
 
   // private async handleInvoicePaymentSucceeded(invoice: Stripe.Invoice) {
   //   const subscriptionId =
