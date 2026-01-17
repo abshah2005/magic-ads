@@ -50,9 +50,6 @@ export class Subscription {
   @Prop({ type: Date, default: null })
   trialEnd?: Date;
 
-  @Prop({ type: Object, default: null })
-  latestInvoice?: Record<string, any>;
-
   @Prop({ default: true })
   isActive: boolean;
 

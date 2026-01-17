@@ -16,9 +16,7 @@ import { ApiResponse } from 'src/common/responses/api-response';
 import { PlanRepository } from '../plans/plans.repository';
 import { UsersRepository } from '../users/users.repository';
 import Webhooks from 'stripe';
-import { BillingHistory } from './dto/billing-history.type';
 import { SubscriptionStatus } from './dto/subscription-status.type';
-import { PaginationUtil } from 'src/common/utils/pagination.util';
 import { BillingHistoryQueryDto } from './dto/billing-history-query.dto';
 import {
   addCredits,
@@ -399,76 +397,6 @@ export class SubscriptionService {
     );
   }
 
-  // async updateSubscription(
-  //   userId: string,
-  //   newPlanId: string,
-  // ): Promise<ApiResponse> {
-  //   const currentSubscription =
-  //     await this.subscriptionRepository.findByUserId(userId);
-
-  //   if (!currentSubscription) {
-  //     throw new NotFoundException('No active subscription found');
-  //   }
-
-  //   const newPlan = await this.plansRepository.findById(newPlanId);
-
-  //   if (!newPlan) {
-  //     throw new NotFoundException('New plan not found');
-  //   }
-
-  // const stripeSubscription = await this.stripe.subscriptions.retrieve(
-  //   currentSubscription.stripeSubscriptionId,
-  // );
-  // const subscriptionItemId = stripeSubscription.items.data[0].id;
-
-  //   const updatedSubscription = await this.stripe.subscriptions.update(
-  //     currentSubscription.stripeSubscriptionId,
-  //     {
-  //       items: [
-  //         {
-  //           id: subscriptionItemId,
-  //           price: newPlan.stripePriceId,
-  //         },
-  //       ],
-  //       proration_behavior: 'create_prorations', // Enable proration
-  //       metadata: {
-  //         planId: newPlanId,
-  //       },
-  //     },
-  //   );
-  //   const item = updatedSubscription.items.data[0];
-
-  //   if (!item?.current_period_start || !item?.current_period_end) {
-  //     throw new Error('Subscription period not available yet');
-  //   }
-
-  //   // Adjust user credits based on the plan change and proration
-  //   await this.adjustUserCredits(
-  //     userId,
-  //     currentSubscription.planId,
-  //     newPlanId,
-  //     new Date(item.current_period_end * 1000),
-  //   );
-
-  //   // Update the subscription in the database
-  //   const updated = await this.subscriptionRepository.update(
-  //     currentSubscription._id.toString(),
-  //     {
-  //       planId: newPlanId,
-  //       stripePriceId: newPlan.stripePriceId,
-  //       stripeProductId: newPlan.stripeProductId,
-  //       currentPeriodStart: new Date(item.current_period_start * 1000),
-  //       currentPeriodEnd: new Date(item.current_period_end * 1000),
-  //     },
-  //   );
-
-  //   return ApiResponse.success(
-  //     updated,
-  //     'Subscription updated successfully with proration applied',
-  //     200,
-  //   );
-  // }
-
   async getUserSubscription(userId: string): Promise<ApiResponse> {
     const subscription = await this.subscriptionRepository.findByUserId(userId);
 
@@ -547,60 +475,6 @@ export class SubscriptionService {
     }
   }
 
-  // private async adjustUserCredits(
-  //   userId: string,
-  //   currentPlanId: string,
-  //   newPlanId: string,
-  //   currentPeriodEnd: Date,
-  // ): Promise<void> {
-  //   const currentPlan = await this.plansRepository.findById(currentPlanId);
-  //   const newPlan = await this.plansRepository.findById(newPlanId);
-
-  //   if (!currentPlan || !newPlan) {
-  //     throw new NotFoundException('Plan details not found');
-  //   }
-
-  //   const user = await this.userRepository.findById(userId);
-  //   if (!user) {
-  //     throw new NotFoundException('User not found');
-  //   }
-
-  //   const currentDailyRate = currentPlan.aiCredits / 30;
-  //   const newDailyRate = newPlan.aiCredits / 30;
-
-  //   const today = new Date();
-  //   const remainingDays = Math.ceil(
-  //     (currentPeriodEnd.getTime() - today.getTime()) / (1000 * 60 * 60 * 24),
-  //   );
-
-  //   if (remainingDays < 0) {
-  //     throw new BadRequestException('Billing cycle has already ended');
-  //   }
-
-  //   const unusedCredits = Math.floor(currentDailyRate * remainingDays);
-
-  //   const additionalCredits = Math.floor(newDailyRate * remainingDays);
-
-  //   const creditAdjustment = additionalCredits - unusedCredits;
-
-  //   const finalCredits = user.creditsAvailable + creditAdjustment;
-
-  //   console.log('Current Plan Credits:', currentPlan.aiCredits);
-  //   console.log('New Plan Credits:', newPlan.aiCredits);
-  //   console.log('Current Daily Rate:', currentDailyRate);
-  //   console.log('New Daily Rate:', newDailyRate);
-  //   console.log('Remaining Days:', remainingDays);
-  //   console.log('Unused Credits:', unusedCredits);
-  //   console.log('Additional Credits:', additionalCredits);
-  //   console.log('Net Credit Adjustment:', creditAdjustment);
-  //   console.log('User Current Credits (Before Update):', user.creditsAvailable);
-  //   console.log('User Final Credits (After Update):', finalCredits);
-
-  //   await this.userRepository.updateUser(userId, {
-  //     creditsAvailable: finalCredits,
-  //   });
-  // }
-
   private async adjustUserCredits(
     userId: string,
     subscriptionId: string,
@@ -627,10 +501,6 @@ export class SubscriptionService {
       await this.subscriptionRepository.findById(subscriptionId);
 
     if (!user || !subscription) {
-      console.error('[adjustUserCredits] User or subscription not found', {
-        user,
-        subscription,
-      });
       throw new NotFoundException('User or subscription not found');
     }
 
@@ -645,14 +515,6 @@ export class SubscriptionService {
       throw new NotFoundException('Plan not found');
     }
 
-    console.log('[adjustUserCredits] Fetched user, subscription, plans:', {
-      userEmail: user.email,
-      currentPlanCredits: currentPlan.aiCredits,
-      newPlanCredits: newPlan.aiCredits,
-      creditAdjustmentHistoryLength:
-        subscription.creditAdjustmentHistory?.length,
-    });
-
     const alreadyAdjusted = subscription.creditAdjustmentHistory?.some(
       (entry) =>
         entry.invoiceId === invoiceId ||
@@ -662,10 +524,6 @@ export class SubscriptionService {
     );
 
     if (alreadyAdjusted) {
-      console.log(
-        '[adjustUserCredits] Already adjusted for this period/invoice, skipping.',
-        { invoiceId, currentPeriodStart, currentPeriodEnd, newPlanId },
-      );
       return;
     }
 
@@ -676,10 +534,6 @@ export class SubscriptionService {
       subscription.creditAdjustmentHistory.length === 0
     ) {
       creditAdjustment = newPlan.aiCredits;
-      console.log(
-        '[adjustUserCredits] First invoice/period, granting full plan credits:',
-        creditAdjustment,
-      );
     } else {
       const today = new Date();
       const remainingDays = Math.ceil(
@@ -693,25 +547,9 @@ export class SubscriptionService {
       const additionalCredits = Math.floor(newDailyRate * remainingDays);
 
       creditAdjustment = additionalCredits - unusedCredits;
-
-      console.log('[adjustUserCredits] Proration calculation:', {
-        today,
-        remainingDays,
-        currentDailyRate,
-        newDailyRate,
-        unusedCredits,
-        additionalCredits,
-        creditAdjustment,
-      });
     }
 
     const finalCredits = Math.max(user.creditsAvailable + creditAdjustment, 0);
-
-    console.log('[adjustUserCredits] Updating user credits:', {
-      previousCredits: user.creditsAvailable,
-      creditAdjustment,
-      finalCredits,
-    });
 
     await this.userRepository.updateUser(userId, {
       creditsAvailable: finalCredits,
@@ -729,18 +567,6 @@ export class SubscriptionService {
     await this.subscriptionRepository.update(subscriptionId, {
       creditAdjustmentHistory: subscription.creditAdjustmentHistory,
     });
-
-    console.log(
-      `[Credits] Adjusted ${creditAdjustment} credits for user ${user.email}. New balance: ${finalCredits}`,
-      {
-        userId,
-        subscriptionId,
-        planId: newPlanId,
-        invoiceId,
-        reason,
-        period: { start: currentPeriodStart, end: currentPeriodEnd },
-      },
-    );
   }
 
   private async handleCheckoutSessionCompleted(
@@ -942,12 +768,6 @@ export class SubscriptionService {
 
     let newStatus: SubscriptionStatus = SubscriptionStatus.PAST_DUE;
 
-    /**
-     * Stripe rules:
-     * - incomplete  → first payment failed
-     * - past_due    → retrying
-     * - unpaid      → retries exhausted (final)
-     */
     if (!nextAttempt && attemptCount > 0) {
       newStatus = SubscriptionStatus.UNPAID;
     }

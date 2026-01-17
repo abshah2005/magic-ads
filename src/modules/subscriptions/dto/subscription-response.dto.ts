@@ -13,7 +13,6 @@ export class SubscriptionResponseDto {
   canceledAt?: Date;
   trialStart?: Date;
   trialEnd?: Date;
-  latestInvoice?: Record<string, any>;
   isActive: boolean;
   createdAt: Date;
   updatedAt: Date;

@@ -46,15 +46,11 @@ export class AuthService {
       profilePicKey: null,
     };
 
-    // let user = await this.usersRepository.findByGoogleId(googleUser.googleId);
-    // if (!user) user = await this.usersService.signup(userData);
-
     let user = await this.usersRepository.findByGoogleId(googleUser.googleId);
     if (!user) {
       try {
         user = await this.usersService.signup(userData);
       } catch (err) {
-        // If duplicate error, fetch the user again
         if (err.code === 11000) {
           user = await this.usersRepository.findByGoogleId(googleUser.googleId);
         } else {
@@ -91,13 +87,13 @@ export class AuthService {
     let user = await this.usersService.findByEmail(email);
     if (!user) {
       const userData: CreateUserDto = {
-        username: email.split('@')[0], // Use email prefix as default username
+        username: email.split('@')[0], 
         email: email,
-        googleId: undefined, // No Google ID for magic link signup
-        firstName: 'Guest', // Default first name
-        lastName: 'User', // Default last name
-        profilePic: null, // Default profile picture
-        password: 'magic-link', // Set password for magic link authentication
+        googleId: undefined, 
+        firstName: 'Guest', 
+        lastName: 'User', 
+        profilePic: null, 
+        password: 'magic-link', 
         profilePicKey: null,
       };
       user = await this.usersService.signup(userData);
@@ -188,7 +184,6 @@ export class AuthService {
     }
   }
 
-  /** Refresh token rotation */
   async refreshSession(
     sessionId: string,
     refreshToken: string,
