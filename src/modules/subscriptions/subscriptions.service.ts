@@ -12,12 +12,14 @@ import {
   SubscriptionResponseDto,
   CheckoutSessionResponseDto,
 } from './dto/subscription-response.dto';
-import { SubscriptionStatus } from './schemas/subscriptions.schema';
 import { ApiResponse } from 'src/common/responses/api-response';
 import { PlanRepository } from '../plans/plans.repository';
 import { UsersRepository } from '../users/users.repository';
 import Webhooks from 'stripe';
 import { BillingHistory } from './dto/billing-history.type';
+import { SubscriptionStatus } from './dto/subscription-status.type';
+import { PaginationUtil } from 'src/common/utils/pagination.util';
+import { BillingHistoryQueryDto } from './dto/billing-history-query.dto';
 
 @Injectable()
 export class SubscriptionService {
@@ -130,40 +132,56 @@ export class SubscriptionService {
     }
   }
 
-  
-    async getBillingHistory(userId: string): Promise<ApiResponse> {
+  async getBillingHistory(
+    userId: string,
+    query: BillingHistoryQueryDto,
+  ): Promise<ApiResponse> {
     const subscription = await this.subscriptionRepository.findByUserId(userId);
 
     if (!subscription) {
-      throw new NotFoundException('No active subscription found for the user');
+      throw new NotFoundException('No active subscription found');
     }
 
-    try {
-      const invoices = await this.stripe.invoices.list({
-        customer: subscription.stripeCustomerId,
-        limit: 10,
-      });
+    const params: Stripe.InvoiceListParams = {
+      customer: subscription.stripeCustomerId,
+      limit: query.limit,
+    };
 
-      const billingHistory: BillingHistory = invoices.data.map((invoice) => ({
-        id: invoice.id,
-        amountPaid: invoice.amount_paid / 100,
-        currency: invoice.currency.toUpperCase(),
-        status: invoice.status,
-        description: invoice.lines.data[0]?.description || 'No description',
-        created: new Date(invoice.created * 1000), 
-        dueDate: invoice.due_date ? new Date(invoice.due_date * 1000) : null,
-      }));
-
-      return ApiResponse.success(
-        billingHistory,
-        'Billing history fetched successfully',
-        200,
-      );
-    } catch (error) {
-      throw new InternalServerErrorException(
-        `Failed to fetch billing history: ${error.message}`,
-      );
+    if (query.cursor) {
+      if (query.direction === 'next') {
+        params.starting_after = query.cursor;
+      } else {
+        params.ending_before = query.cursor;
+      }
     }
+
+    const invoices = await this.stripe.invoices.list(params);
+
+    // const subscriptionfound=invoices.data[0].parent?.subscription_details
+    // console.log("id here ",subscriptionfound?.subscription)
+    
+    const data = invoices.data.map((invoice) => ({
+      id: invoice.id,
+      amountPaid: invoice.amount_paid / 100,
+      currency: invoice.currency.toUpperCase(),
+      status: invoice.status,
+      description: invoice.lines.data[0]?.description ?? 'No description',
+      created: new Date(invoice.created * 1000),
+      dueDate: invoice.due_date ? new Date(invoice.due_date * 1000) : null,
+    }));
+
+    const meta = {
+      hasMore: invoices.has_more,
+      nextCursor:
+        invoices.has_more && data.length ? data[data.length - 1].id : null,
+      prevCursor: data.length ? data[0].id : null,
+    };
+    return ApiResponse.success(
+      data,
+      'Billing history fetched successfully',
+      200,
+      meta
+    );
   }
 
   async handleWebhook(
@@ -197,11 +215,11 @@ export class SubscriptionService {
             event.data.object as Stripe.Subscription,
           );
           break;
-        // case 'customer.subscription.updated':
-        //   await this.handleSubscriptionUpdated(
-        //     event.data.object as Stripe.Subscription,
-        //   );
-        //   break;
+        case 'customer.subscription.updated':
+          await this.handleSubscriptionUpdated(
+            event.data.object as Stripe.Subscription,
+          );
+          break;
 
         case 'customer.subscription.deleted':
           await this.handleSubscriptionDeleted(
@@ -304,42 +322,28 @@ export class SubscriptionService {
 
   private async handleSubscriptionUpdated(subscription: Stripe.Subscription) {
     const userId = subscription.metadata?.userId;
-    const newPlanId = subscription.metadata?.planId;
 
-    if (!userId || !newPlanId) {
-      throw new Error('User ID or Plan ID is missing in subscription metadata');
+    if (!userId) {
+      throw new Error('User ID is missing in subscription metadata');
     }
 
-    const currentSubscription =
-      await this.subscriptionRepository.findByStripeSubscriptionId(
-        subscription.id,
-      );
-
-    if (!currentSubscription) {
-      throw new NotFoundException('Subscription not found');
+    const user = await this.userRepository.findById(userId);
+    if (!user) {
+      throw new NotFoundException('User not found');
     }
 
-    const item = subscription.items.data[0];
-
-    await this.adjustUserCredits(
-      userId,
-      currentSubscription.planId,
-      newPlanId,
-      new Date(item.current_period_end * 1000),
-    );
-
-    // Update subscription in the database
     await this.subscriptionRepository.updateByStripeSubscriptionId(
       subscription.id,
       {
-        planId: newPlanId,
-        stripePriceId: item.price.id,
-        stripeProductId: item.price.product as string,
         status: subscription.status as SubscriptionStatus,
-        currentPeriodStart: new Date(item.current_period_start * 1000),
-        currentPeriodEnd: new Date(item.current_period_end * 1000),
       },
     );
+
+    if (subscription.status === SubscriptionStatus.PAST_DUE) {
+      console.log(`Subscription is past due for user: ${user.email}`);
+    } else if (subscription.status === SubscriptionStatus.UNPAID) {
+      console.log(`Subscription is unpaid for user: ${user.email}`);
+    }
   }
 
   private async handleSubscriptionCreated(subscription: Stripe.Subscription) {
@@ -419,9 +423,36 @@ export class SubscriptionService {
     console.log('Payment succeeded for invoice:', invoice.id);
   }
 
-  private async handleInvoicePaymentFailed(invoice: Stripe.Invoice) {
-    // Handle failed payment
-    console.log('Payment failed for invoice:', invoice.id);
+ 
+
+    private async handleInvoicePaymentFailed(invoice: Stripe.Invoice) {
+    const subscriptionId = invoice.parent?.subscription_details?.subscription.toString() ;
+
+    if (!subscriptionId) {
+      console.error('Invoice has no associated subscription:', invoice.id);
+      return; 
+    }
+
+    const subscription = await this.subscriptionRepository.findByStripeSubscriptionId(
+      subscriptionId,
+    );
+
+    if (!subscription) {
+      throw new NotFoundException('Subscription not found');
+    }
+
+    // Notify the user about the failed payment
+    const user = await this.userRepository.findById(subscription.userId);
+    if (user) {
+      // Send email or notification to the user
+      console.log(`Payment failed for user: ${user.email}`);
+    }
+
+    // Update subscription status to past_due
+    await this.subscriptionRepository.updateByStripeSubscriptionId(
+      subscriptionId,
+      { status: SubscriptionStatus.PAST_DUE },
+    );
   }
 
   async getUserSubscription(userId: string): Promise<ApiResponse> {
@@ -435,8 +466,8 @@ export class SubscriptionService {
       id: subscription._id.toString(),
       stripeSubscriptionId: subscription.stripeSubscriptionId,
       stripeCustomerId: subscription.stripeCustomerId,
-      userId: (subscription.userId as any)._id.toString(),
-      planId: (subscription.planId as any)._id.toString(),
+      userId: subscription.userId,
+      planId: subscription.planId,
       stripePriceId: subscription.stripePriceId,
       stripeProductId: subscription.stripeProductId,
       status: subscription.status,

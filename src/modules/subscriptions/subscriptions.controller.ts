@@ -9,6 +9,7 @@ import {
   HttpStatus,
   BadRequestException,
   Put,
+  Query,
 } from '@nestjs/common';
 import { SubscriptionService } from './subscriptions.service';
 import { CreateSubscriptionDto } from './dto/create-subscription.dto';
@@ -16,6 +17,7 @@ import { ApiResponse } from 'src/common/responses/api-response';
 import { Public } from 'src/common/decorators/public.decorator';
 import { User } from 'src/common/decorators/user.decorator';
 import type { Request } from 'express';
+import { BillingHistoryQueryDto } from './dto/billing-history-query.dto';
 
 @Controller('subscriptions')
 export class SubscriptionController {
@@ -79,15 +81,18 @@ export class SubscriptionController {
   }
 
   @Get('billing-history')
-async getBillingHistory(@User() user): Promise<ApiResponse> {
-  const userId = user._id;
-  if (!userId) {
-    throw new BadRequestException('User not found');
+  async getBillingHistory(
+    @User() user,
+    @Query() query: BillingHistoryQueryDto,
+  ): Promise<ApiResponse> {
+    const userId = user?._id;
+    if (!userId) {
+      throw new BadRequestException('User not found');
+    }
+
+    return this.subscriptionService.getBillingHistory(userId, query);
   }
 
-  return this.subscriptionService.getBillingHistory(userId);
-}
-  
   @Put('update')
   async updateSubscription(
     @Body('planId') planId: string,

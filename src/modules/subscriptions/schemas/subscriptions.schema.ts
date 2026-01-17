@@ -1,17 +1,8 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document, Schema as MongooseSchema } from 'mongoose';
+import { SubscriptionStatus } from '../dto/subscription-status.type';
 
 export type SubscriptionDocument = Subscription & Document;
-
-export enum SubscriptionStatus {
-  ACTIVE = 'active',
-  CANCELED = 'canceled',
-  PAST_DUE = 'past_due',
-  UNPAID = 'unpaid',
-  TRIALING = 'trialing',
-  INCOMPLETE = 'incomplete',
-  INCOMPLETE_EXPIRED = 'incomplete_expired',
-}
 
 @Schema({ timestamps: true })
 export class Subscription {

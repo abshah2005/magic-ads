@@ -4,8 +4,8 @@ import { Model } from 'mongoose';
 import {
   Subscription,
   SubscriptionDocument,
-  SubscriptionStatus,
 } from './schemas/subscriptions.schema';
+import { SubscriptionStatus } from './dto/subscription-status.type';
 
 @Injectable()
 export class SubscriptionRepository {
