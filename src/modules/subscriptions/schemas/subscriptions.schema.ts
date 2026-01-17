@@ -1,6 +1,7 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document, Schema as MongooseSchema } from 'mongoose';
 import { SubscriptionStatus } from '../dto/subscription-status.type';
+import { CreditAdjustmentHistoryItem } from '../dto/credit-adjustment-history.dto';
 
 export type SubscriptionDocument = Subscription & Document;
 
@@ -57,6 +58,9 @@ export class Subscription {
 
   @Prop()
   createdAt: Date;
+
+  @Prop({ type: [Object], default: [] })
+  creditAdjustmentHistory: CreditAdjustmentHistoryItem[];
 
   @Prop()
   updatedAt: Date;

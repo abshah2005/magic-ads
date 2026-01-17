@@ -35,6 +35,12 @@ export class SubscriptionRepository {
       .exec();
   }
 
+  async findById(id: string): Promise<SubscriptionDocument | null> {
+    return this.subscriptionModel
+      .findOne({ _id:id })
+      .exec();
+  }
+
   async findAllByUserId(userId: string): Promise<SubscriptionDocument[]> {
     return this.subscriptionModel
       .find({ userId })

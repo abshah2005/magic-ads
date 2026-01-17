@@ -323,7 +323,7 @@ export class SubscriptionService {
     userId: string,
     newPlanId: string,
   ): Promise<ApiResponse> {
-    const currentSubscription =
+       const currentSubscription =
       await this.subscriptionRepository.findByUserId(userId);
 
     if (!currentSubscription) {
@@ -336,12 +336,13 @@ export class SubscriptionService {
       throw new NotFoundException('New plan not found');
     }
 
-    const stripeSubscription = await this.stripe.subscriptions.retrieve(
-      currentSubscription.stripeSubscriptionId,
-    );
-    const subscriptionItemId = stripeSubscription.items.data[0].id;
+  const stripeSubscription = await this.stripe.subscriptions.retrieve(
+    currentSubscription.stripeSubscriptionId,
+  );
+  const subscriptionItemId = stripeSubscription.items.data[0].id;
+   
 
-    const updatedSubscription = await this.stripe.subscriptions.update(
+    const stripeSub = await this.stripe.subscriptions.update(
       currentSubscription.stripeSubscriptionId,
       {
         items: [
@@ -350,44 +351,115 @@ export class SubscriptionService {
             price: newPlan.stripePriceId,
           },
         ],
-        proration_behavior: 'create_prorations', // Enable proration
-        metadata: {
-          planId: newPlanId,
-        },
+        proration_behavior: 'create_prorations',
+        metadata: { planId: newPlanId },
       },
     );
-    const item = updatedSubscription.items.data[0];
 
-    if (!item?.current_period_start || !item?.current_period_end) {
-      throw new Error('Subscription period not available yet');
-    }
+    const item = stripeSub.items.data[0];
+    const periodStart = new Date(item.current_period_start * 1000);
+    const periodEnd = new Date(item.current_period_end * 1000);
 
-    // Adjust user credits based on the plan change and proration
+    // 1️⃣ Adjust credits safely using the idempotent utility
     await this.adjustUserCredits(
       userId,
+      currentSubscription.stripeCustomerId,
       currentSubscription.planId,
       newPlanId,
-      new Date(item.current_period_end * 1000),
+      periodStart,
+      periodEnd,
+      undefined,
+      'Subscription upgrade/downgrade prorated adjustment',
     );
 
-    // Update the subscription in the database
+    // 2️⃣ Update subscription DB
     const updated = await this.subscriptionRepository.update(
       currentSubscription._id.toString(),
       {
         planId: newPlanId,
         stripePriceId: newPlan.stripePriceId,
         stripeProductId: newPlan.stripeProductId,
-        currentPeriodStart: new Date(item.current_period_start * 1000),
-        currentPeriodEnd: new Date(item.current_period_end * 1000),
+        currentPeriodStart: periodStart,
+        currentPeriodEnd: periodEnd,
       },
     );
 
     return ApiResponse.success(
       updated,
-      'Subscription updated successfully with proration applied',
+      'Subscription updated successfully',
       200,
     );
   }
+
+  // async updateSubscription(
+  //   userId: string,
+  //   newPlanId: string,
+  // ): Promise<ApiResponse> {
+  //   const currentSubscription =
+  //     await this.subscriptionRepository.findByUserId(userId);
+
+  //   if (!currentSubscription) {
+  //     throw new NotFoundException('No active subscription found');
+  //   }
+
+  //   const newPlan = await this.plansRepository.findById(newPlanId);
+
+  //   if (!newPlan) {
+  //     throw new NotFoundException('New plan not found');
+  //   }
+
+  // const stripeSubscription = await this.stripe.subscriptions.retrieve(
+  //   currentSubscription.stripeSubscriptionId,
+  // );
+  // const subscriptionItemId = stripeSubscription.items.data[0].id;
+
+  //   const updatedSubscription = await this.stripe.subscriptions.update(
+  //     currentSubscription.stripeSubscriptionId,
+  //     {
+  //       items: [
+  //         {
+  //           id: subscriptionItemId,
+  //           price: newPlan.stripePriceId,
+  //         },
+  //       ],
+  //       proration_behavior: 'create_prorations', // Enable proration
+  //       metadata: {
+  //         planId: newPlanId,
+  //       },
+  //     },
+  //   );
+  //   const item = updatedSubscription.items.data[0];
+
+  //   if (!item?.current_period_start || !item?.current_period_end) {
+  //     throw new Error('Subscription period not available yet');
+  //   }
+
+  //   // Adjust user credits based on the plan change and proration
+  //   await this.adjustUserCredits(
+  //     userId,
+  //     currentSubscription.planId,
+  //     newPlanId,
+  //     new Date(item.current_period_end * 1000),
+  //   );
+
+  //   // Update the subscription in the database
+  //   const updated = await this.subscriptionRepository.update(
+  //     currentSubscription._id.toString(),
+  //     {
+  //       planId: newPlanId,
+  //       stripePriceId: newPlan.stripePriceId,
+  //       stripeProductId: newPlan.stripeProductId,
+  //       currentPeriodStart: new Date(item.current_period_start * 1000),
+  //       currentPeriodEnd: new Date(item.current_period_end * 1000),
+  //     },
+  //   );
+
+  //   return ApiResponse.success(
+  //     updated,
+  //     'Subscription updated successfully with proration applied',
+  //     200,
+  //   );
+  // }
 
   async getUserSubscription(userId: string): Promise<ApiResponse> {
     const subscription = await this.subscriptionRepository.findByUserId(userId);
@@ -467,58 +539,135 @@ export class SubscriptionService {
     }
   }
 
+  // private async adjustUserCredits(
+  //   userId: string,
+  //   currentPlanId: string,
+  //   newPlanId: string,
+  //   currentPeriodEnd: Date,
+  // ): Promise<void> {
+  //   const currentPlan = await this.plansRepository.findById(currentPlanId);
+  //   const newPlan = await this.plansRepository.findById(newPlanId);
+
+  //   if (!currentPlan || !newPlan) {
+  //     throw new NotFoundException('Plan details not found');
+  //   }
+
+  //   const user = await this.userRepository.findById(userId);
+  //   if (!user) {
+  //     throw new NotFoundException('User not found');
+  //   }
+
+  //   const currentDailyRate = currentPlan.aiCredits / 30;
+  //   const newDailyRate = newPlan.aiCredits / 30;
+
+  //   const today = new Date();
+  //   const remainingDays = Math.ceil(
+  //     (currentPeriodEnd.getTime() - today.getTime()) / (1000 * 60 * 60 * 24),
+  //   );
+
+  //   if (remainingDays < 0) {
+  //     throw new BadRequestException('Billing cycle has already ended');
+  //   }
+
+  //   const unusedCredits = Math.floor(currentDailyRate * remainingDays);
+
+  //   const additionalCredits = Math.floor(newDailyRate * remainingDays);
+
+  //   const creditAdjustment = additionalCredits - unusedCredits;
+
+  //   const finalCredits = user.creditsAvailable + creditAdjustment;
+
+  //   console.log('Current Plan Credits:', currentPlan.aiCredits);
+  //   console.log('New Plan Credits:', newPlan.aiCredits);
+  //   console.log('Current Daily Rate:', currentDailyRate);
+  //   console.log('New Daily Rate:', newDailyRate);
+  //   console.log('Remaining Days:', remainingDays);
+  //   console.log('Unused Credits:', unusedCredits);
+  //   console.log('Additional Credits:', additionalCredits);
+  //   console.log('Net Credit Adjustment:', creditAdjustment);
+  //   console.log('User Current Credits (Before Update):', user.creditsAvailable);
+  //   console.log('User Final Credits (After Update):', finalCredits);
+
+  //   await this.userRepository.updateUser(userId, {
+  //     creditsAvailable: finalCredits,
+  //   });
+  // }
+
   private async adjustUserCredits(
     userId: string,
+    subscriptionId: string,
     currentPlanId: string,
     newPlanId: string,
+    currentPeriodStart: Date,
     currentPeriodEnd: Date,
+    invoiceId?: string,
+    reason?: string,
   ): Promise<void> {
+    const user = await this.userRepository.findById(userId);
+    const subscription =
+      await this.subscriptionRepository.findById(subscriptionId);
+
+    if (!user || !subscription)
+      throw new NotFoundException('User or subscription not found');
+
     const currentPlan = await this.plansRepository.findById(currentPlanId);
     const newPlan = await this.plansRepository.findById(newPlanId);
 
-    if (!currentPlan || !newPlan) {
-      throw new NotFoundException('Plan details not found');
-    }
+    if (!currentPlan || !newPlan) throw new NotFoundException('Plan not found');
 
-    const user = await this.userRepository.findById(userId);
-    if (!user) {
-      throw new NotFoundException('User not found');
-    }
+    // 1️⃣ Check if this period + invoice has already been processed
+    const alreadyAdjusted = subscription.creditAdjustmentHistory?.some(
+      (entry) =>
+        entry.invoiceId === invoiceId ||
+        (entry.periodStart.getTime() === currentPeriodStart.getTime() &&
+          entry.periodEnd.getTime() === currentPeriodEnd.getTime() &&
+          entry.planId === newPlanId),
+    );
 
-    const currentDailyRate = currentPlan.aiCredits / 30;
-    const newDailyRate = newPlan.aiCredits / 30;
+    if (alreadyAdjusted) {
+      console.log(
+        '[Credits] Already adjusted for this period/invoice, skipping.',
+      );
+      return;
+    }
 
     const today = new Date();
     const remainingDays = Math.ceil(
       (currentPeriodEnd.getTime() - today.getTime()) / (1000 * 60 * 60 * 24),
     );
 
-    if (remainingDays < 0) {
-      throw new BadRequestException('Billing cycle has already ended');
-    }
+    const currentDailyRate = currentPlan.aiCredits / 30;
+    const newDailyRate = newPlan.aiCredits / 30;
 
     const unusedCredits = Math.floor(currentDailyRate * remainingDays);
-
     const additionalCredits = Math.floor(newDailyRate * remainingDays);
 
     const creditAdjustment = additionalCredits - unusedCredits;
 
-    const finalCredits = user.creditsAvailable + creditAdjustment;
-
-    console.log('Current Plan Credits:', currentPlan.aiCredits);
-    console.log('New Plan Credits:', newPlan.aiCredits);
-    console.log('Current Daily Rate:', currentDailyRate);
-    console.log('New Daily Rate:', newDailyRate);
-    console.log('Remaining Days:', remainingDays);
-    console.log('Unused Credits:', unusedCredits);
-    console.log('Additional Credits:', additionalCredits);
-    console.log('Net Credit Adjustment:', creditAdjustment);
-    console.log('User Current Credits (Before Update):', user.creditsAvailable);
-    console.log('User Final Credits (After Update):', finalCredits);
+    // 2️⃣ Apply the adjustment (can be negative for downgrades)
+    const finalCredits = Math.max(user.creditsAvailable + creditAdjustment, 0);
 
     await this.userRepository.updateUser(userId, {
       creditsAvailable: finalCredits,
     });
+
+    // 3️⃣ Save adjustment in subscription history
+    subscription.creditAdjustmentHistory.push({
+      periodStart: currentPeriodStart,
+      periodEnd: currentPeriodEnd,
+      planId: newPlanId,
+      invoiceId,
+      adjustment: creditAdjustment,
+      reason: reason ?? 'Subscription adjustment',
+    });
+
+    await this.subscriptionRepository.update(subscriptionId, {
+      creditAdjustmentHistory: subscription.creditAdjustmentHistory,
+    });
+
+    console.log(
+      `[Credits] Adjusted ${creditAdjustment} credits for user ${user.email}. New balance: ${finalCredits}`,
+    );
   }
 
   private async handleCheckoutSessionCompleted(
@@ -623,38 +772,71 @@ export class SubscriptionService {
     );
   }
 
+
   private async handleInvoicePaymentSucceeded(invoice: Stripe.Invoice) {
-    const subscriptionId =
-      invoice.parent?.subscription_details?.subscription.toString();
+  const subscriptionId = invoice.parent?.subscription_details?.subscription.toString();
+  if (!subscriptionId) return;
 
-    if (!subscriptionId) return;
+  const subscription = await this.subscriptionRepository.findByStripeSubscriptionId(subscriptionId);
+  if (!subscription) return;
 
-    const subscription =
-      await this.subscriptionRepository.findByStripeSubscriptionId(
-        subscriptionId,
-      );
+  const user = await this.userRepository.findById(subscription.userId);
+  const plan = await this.plansRepository.findById(subscription.planId);
+  if (!user || !plan) return;
 
-    if (!subscription) return;
+  // Only add full plan credits **once per invoice**
+  await this.adjustUserCredits(
+    user.id,
+    subscription._id.toString(),
+    subscription.planId,
+    subscription.planId,
+    new Date(invoice.period_start * 1000),
+    new Date(invoice.period_end * 1000),
+    invoice.id,
+    'Monthly subscription credit addition'
+  );
 
-    const plan = await this.plansRepository.findById(subscription.planId);
-    const user = await this.userRepository.findById(subscription.userId);
+  await this.subscriptionRepository.updateByStripeSubscriptionId(subscriptionId, {
+    status: SubscriptionStatus.ACTIVE,
+    isActive: true,
+    currentPeriodStart: new Date(invoice.period_start * 1000),
+    currentPeriodEnd: new Date(invoice.period_end * 1000),
+  });
+}
 
-    if (!plan || !user) return;
 
-    await this.userRepository.updateUser(user.id, {
-      creditsAvailable: user.creditsAvailable + plan.aiCredits,
-    });
+  // private async handleInvoicePaymentSucceeded(invoice: Stripe.Invoice) {
+  //   const subscriptionId =
+  //     invoice.parent?.subscription_details?.subscription.toString();
 
-    await this.subscriptionRepository.updateByStripeSubscriptionId(
-      subscriptionId,
-      {
-        status: SubscriptionStatus.ACTIVE,
-        isActive: true,
-        currentPeriodStart: new Date(invoice.period_start * 1000),
-        currentPeriodEnd: new Date(invoice.period_end * 1000),
-      },
-    );
-  }
+  //   if (!subscriptionId) return;
+
+  //   const subscription =
+  //     await this.subscriptionRepository.findByStripeSubscriptionId(
+  //       subscriptionId,
+  //     );
+
+  //   if (!subscription) return;
+
+  //   const plan = await this.plansRepository.findById(subscription.planId);
+  //   const user = await this.userRepository.findById(subscription.userId);
+
+  //   if (!plan || !user) return;
+
+  //   await this.userRepository.updateUser(user.id, {
+  //     creditsAvailable: user.creditsAvailable + plan.aiCredits,
+  //   });
+
+  //   await this.subscriptionRepository.updateByStripeSubscriptionId(
+  //     subscriptionId,
+  //     {
+  //       status: SubscriptionStatus.ACTIVE,
+  //       isActive: true,
+  //       currentPeriodStart: new Date(invoice.period_start * 1000),
+  //       currentPeriodEnd: new Date(invoice.period_end * 1000),
+  //     },
+  //   );
+  // }
 
   private async handleInvoicePaymentFailed(
     invoice: Stripe.Invoice,
