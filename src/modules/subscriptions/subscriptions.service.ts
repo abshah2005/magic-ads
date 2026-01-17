@@ -20,7 +20,11 @@ import { BillingHistory } from './dto/billing-history.type';
 import { SubscriptionStatus } from './dto/subscription-status.type';
 import { PaginationUtil } from 'src/common/utils/pagination.util';
 import { BillingHistoryQueryDto } from './dto/billing-history-query.dto';
-import { addCredits, consumeCredits, rollbackCredits } from 'src/common/utils/credits.util';
+import {
+  addCredits,
+  consumeCredits,
+  rollbackCredits,
+} from 'src/common/utils/credits.util';
 
 @Injectable()
 export class SubscriptionService {
@@ -133,7 +137,6 @@ export class SubscriptionService {
     }
   }
 
-
   async getUserCredits(userId: string): Promise<ApiResponse> {
     const user = await this.userRepository.findById(userId);
 
@@ -148,18 +151,20 @@ export class SubscriptionService {
       totalCredits: (user.creditsAvailable ?? 0) + (user.creditsConsumed ?? 0),
     };
 
-   
-
     return ApiResponse.success(data, 'User credits fetched successfully', 200);
   }
 
- 
   async addUserCredits(
     userId: string,
     amount: number,
     reason?: string,
   ): Promise<ApiResponse> {
-    const newBalance = await addCredits(userId, amount, this.userRepository, reason);
+    const newBalance = await addCredits(
+      userId,
+      amount,
+      this.userRepository,
+      reason,
+    );
     return ApiResponse.success(
       { creditsAvailable: newBalance },
       `Credits added successfully. Reason: ${reason ?? 'N/A'}`,
@@ -167,13 +172,17 @@ export class SubscriptionService {
     );
   }
 
-  
   async consumeUserCredits(
     userId: string,
     amount: number,
     options?: { reason?: string; rollbackOnFail?: boolean },
   ): Promise<ApiResponse> {
-    const newBalance = await consumeCredits(userId, amount, this.userRepository, options);
+    const newBalance = await consumeCredits(
+      userId,
+      amount,
+      this.userRepository,
+      options,
+    );
     return ApiResponse.success(
       { creditsAvailable: newBalance },
       `Credits consumed successfully. Reason: ${options?.reason ?? 'N/A'}`,
@@ -181,13 +190,17 @@ export class SubscriptionService {
     );
   }
 
-
   async rollbackUserCredits(
     userId: string,
     amount: number,
     reason?: string,
   ): Promise<ApiResponse> {
-    const newBalance = await rollbackCredits(userId, amount, this.userRepository, reason);
+    const newBalance = await rollbackCredits(
+      userId,
+      amount,
+      this.userRepository,
+      reason,
+    );
     return ApiResponse.success(
       { creditsAvailable: newBalance },
       `Credits rolled back successfully. Reason: ${reason ?? 'N/A'}`,
@@ -220,9 +233,6 @@ export class SubscriptionService {
 
     const invoices = await this.stripe.invoices.list(params);
 
-    // const subscriptionfound=invoices.data[0].parent?.subscription_details
-    // console.log("id here ",subscriptionfound?.subscription)
-    
     const data = invoices.data.map((invoice) => ({
       id: invoice.id,
       amountPaid: invoice.amount_paid / 100,
@@ -243,7 +253,7 @@ export class SubscriptionService {
       data,
       'Billing history fetched successfully',
       200,
-      meta
+      meta,
     );
   }
 
@@ -308,29 +318,6 @@ export class SubscriptionService {
       throw new InternalServerErrorException(`Webhook error: ${error.message}`);
     }
   }
-
-  private async handleCheckoutSessionCompleted(session: Stripe.Checkout.Session) {
-    const subscriptionId = session.subscription?.toString();
-    if (!subscriptionId) return;
-
-    const subscription = await this.subscriptionRepository.findByStripeSubscriptionId(subscriptionId);
-    if (!subscription) return;
-
-    // Check if payment_status succeeded
-    if (session.payment_status === 'paid') {
-        await this.subscriptionRepository.updateByStripeSubscriptionId(subscriptionId, {
-            status: SubscriptionStatus.ACTIVE,
-            isActive: true,
-        });
-
-        const plan = await this.plansRepository.findById(subscription.planId);
-        const user = await this.userRepository.findById(subscription.userId);
-        
-    } else {
-        console.log(`Checkout session completed but payment incomplete for subscription ${subscriptionId}`);
-    }
-}
-
 
   async updateSubscription(
     userId: string,
@@ -401,176 +388,6 @@ export class SubscriptionService {
       200,
     );
   }
-
-  private async handleSubscriptionUpdated(subscription: Stripe.Subscription) {
-    const userId = subscription.metadata?.userId;
-
-    if (!userId) {
-      throw new Error('User ID is missing in subscription metadata');
-    }
-
-    const user = await this.userRepository.findById(userId);
-    if (!user) {
-      throw new NotFoundException('User not found');
-    }
-
-    await this.subscriptionRepository.updateByStripeSubscriptionId(
-      subscription.id,
-      {
-        status: subscription.status as SubscriptionStatus,
-      },
-    );
-
-    if (subscription.status === SubscriptionStatus.PAST_DUE) {
-      console.log(`Subscription is past due for user: ${user.email}`);
-    } else if (subscription.status === SubscriptionStatus.UNPAID) {
-      console.log(`Subscription is unpaid for user: ${user.email}`);
-    }
-  }
-
-
-  private async handleSubscriptionCreated(subscription: Stripe.Subscription) {
-  const userId = subscription.metadata?.userId;
-  const planId = subscription.metadata?.planId;
-
-  if (!userId || !planId) return;
-
-  await this.subscriptionRepository.create({
-    stripeSubscriptionId: subscription.id,
-    stripeCustomerId: subscription.customer as string,
-    userId,
-    planId,
-    stripePriceId: subscription.items.data[0].price.id,
-    stripeProductId: subscription.items.data[0].price.product as string,
-    status: subscription.status as SubscriptionStatus, // incomplete
-    isActive: false, // 🔴 IMPORTANT
-  });
-}
-
-
-  private async handleSubscriptionDeleted(subscription: Stripe.Subscription) {
-    const userId = subscription.metadata?.userId;
-
-    if (!userId) {
-      throw new Error('User ID is missing in subscription metadata');
-    }
-
-    const user = await this.userRepository.findById(userId);
-    if (!user) {
-      throw new NotFoundException('User not found');
-    }
-
-    // Deduct all remaining credits
-    await this.userRepository.updateUser(userId, {
-      creditsAvailable: 0,
-    });
-
-    // Update subscription status in the database
-    await this.subscriptionRepository.updateByStripeSubscriptionId(
-      subscription.id,
-      {
-        status: SubscriptionStatus.CANCELED,
-        isActive: false,
-        canceledAt: new Date(),
-      },
-    );
-  }
-
-  private async handleInvoicePaymentSucceeded(invoice: Stripe.Invoice) {
-  const subscriptionId =
-    invoice.parent?.subscription_details?.subscription.toString();
-
-  if (!subscriptionId) return;
-
-  const subscription =
-    await this.subscriptionRepository.findByStripeSubscriptionId(subscriptionId);
-
-  if (!subscription) return;
-
-  const plan = await this.plansRepository.findById(subscription.planId);
-  const user = await this.userRepository.findById(subscription.userId);
-
-  if (!plan || !user) return;
-
-  await this.userRepository.updateUser(user.id, {
-    creditsAvailable: user.creditsAvailable + plan.aiCredits,
-  });
-
-  await this.subscriptionRepository.updateByStripeSubscriptionId(
-    subscriptionId,
-    {
-      status: SubscriptionStatus.ACTIVE,
-      isActive: true,
-      currentPeriodStart: new Date(invoice.period_start * 1000),
-      currentPeriodEnd: new Date(invoice.period_end * 1000),
-    },
-  );
-}
-
-
-private async handleInvoicePaymentFailed(
-  invoice: Stripe.Invoice,
-): Promise<void> {
-  const subscriptionId =
-    invoice.parent?.subscription_details?.subscription.toString()
-
-  if (!subscriptionId) {
-    throw new NotFoundException('Subscription not found');
-  }
-
-  const subscription =
-    await this.subscriptionRepository.findByStripeSubscriptionId(
-      subscriptionId,
-    );
-
-  if (!subscription) {
-    throw new NotFoundException('Subscription not found');
-  }
-
-  const attemptCount = invoice.attempt_count ?? 0;
-  const nextAttempt = invoice.next_payment_attempt;
-
-  let newStatus: SubscriptionStatus = SubscriptionStatus.PAST_DUE;
-
-  /**
-   * Stripe rules:
-   * - incomplete  → first payment failed
-   * - past_due    → retrying
-   * - unpaid      → retries exhausted (final)
-   */
-  if (!nextAttempt && attemptCount > 0) {
-    newStatus = SubscriptionStatus.UNPAID;
-  }
-
-  // 4️⃣ Persist status (idempotent)
-  await this.subscriptionRepository.updateByStripeSubscriptionId(
-    subscriptionId,
-    {
-      status: newStatus,
-      isActive: false,
-    },
-  );
-
-  // 5️⃣ Notify user (no side effects)
-  const user = await this.userRepository.findById(subscription.userId);
-  if (user) {
-    console.log(
-      `⚠️ Payment failed for user ${user.email}. Status: ${newStatus}`,
-    );
-    // TODO: send email / push / in-app notification
-  }
-
-  // 6️⃣ If UNPAID → Stripe will auto-cancel (prepare cleanup)
-  if (newStatus === SubscriptionStatus.UNPAID) {
-    console.log(
-      `🚫 Subscription ${subscriptionId} is unpaid and may be canceled by Stripe`,
-    );
-  }
-}
-
- 
-
-
 
   async getUserSubscription(userId: string): Promise<ApiResponse> {
     const subscription = await this.subscriptionRepository.findByUserId(userId);
@@ -702,5 +519,200 @@ private async handleInvoicePaymentFailed(
     await this.userRepository.updateUser(userId, {
       creditsAvailable: finalCredits,
     });
+  }
+
+  private async handleCheckoutSessionCompleted(
+    session: Stripe.Checkout.Session,
+  ) {
+    const subscriptionId = session.subscription?.toString();
+    if (!subscriptionId) return;
+
+    const subscription =
+      await this.subscriptionRepository.findByStripeSubscriptionId(
+        subscriptionId,
+      );
+    if (!subscription) return;
+
+    if (session.payment_status === 'paid') {
+      await this.subscriptionRepository.updateByStripeSubscriptionId(
+        subscriptionId,
+        {
+          status: SubscriptionStatus.ACTIVE,
+          isActive: true,
+        },
+      );
+
+      const plan = await this.plansRepository.findById(subscription.planId);
+      const user = await this.userRepository.findById(subscription.userId);
+    } else {
+      console.log(
+        `Checkout session completed but payment incomplete for subscription ${subscriptionId}`,
+      );
+    }
+  }
+
+  private async handleSubscriptionUpdated(subscription: Stripe.Subscription) {
+    const userId = subscription.metadata?.userId;
+
+    if (!userId) {
+      throw new Error('User ID is missing in subscription metadata');
+    }
+
+    const user = await this.userRepository.findById(userId);
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    await this.subscriptionRepository.updateByStripeSubscriptionId(
+      subscription.id,
+      {
+        status: subscription.status as SubscriptionStatus,
+      },
+    );
+
+    if (subscription.status === SubscriptionStatus.PAST_DUE) {
+      console.log(`Subscription is past due for user: ${user.email}`);
+    } else if (subscription.status === SubscriptionStatus.UNPAID) {
+      console.log(`Subscription is unpaid for user: ${user.email}`);
+    }
+  }
+
+  private async handleSubscriptionCreated(subscription: Stripe.Subscription) {
+    const userId = subscription.metadata?.userId;
+    const planId = subscription.metadata?.planId;
+
+    if (!userId || !planId) return;
+
+    await this.subscriptionRepository.create({
+      stripeSubscriptionId: subscription.id,
+      stripeCustomerId: subscription.customer as string,
+      userId,
+      planId,
+      stripePriceId: subscription.items.data[0].price.id,
+      stripeProductId: subscription.items.data[0].price.product as string,
+      status: subscription.status as SubscriptionStatus, // incomplete
+      isActive: false, // 🔴 IMPORTANT
+    });
+  }
+
+  private async handleSubscriptionDeleted(subscription: Stripe.Subscription) {
+    const userId = subscription.metadata?.userId;
+
+    if (!userId) {
+      throw new Error('User ID is missing in subscription metadata');
+    }
+
+    const user = await this.userRepository.findById(userId);
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    // Deduct all remaining credits
+    await this.userRepository.updateUser(userId, {
+      creditsAvailable: 0,
+    });
+
+    // Update subscription status in the database
+    await this.subscriptionRepository.updateByStripeSubscriptionId(
+      subscription.id,
+      {
+        status: SubscriptionStatus.CANCELED,
+        isActive: false,
+        canceledAt: new Date(),
+      },
+    );
+  }
+
+  private async handleInvoicePaymentSucceeded(invoice: Stripe.Invoice) {
+    const subscriptionId =
+      invoice.parent?.subscription_details?.subscription.toString();
+
+    if (!subscriptionId) return;
+
+    const subscription =
+      await this.subscriptionRepository.findByStripeSubscriptionId(
+        subscriptionId,
+      );
+
+    if (!subscription) return;
+
+    const plan = await this.plansRepository.findById(subscription.planId);
+    const user = await this.userRepository.findById(subscription.userId);
+
+    if (!plan || !user) return;
+
+    await this.userRepository.updateUser(user.id, {
+      creditsAvailable: user.creditsAvailable + plan.aiCredits,
+    });
+
+    await this.subscriptionRepository.updateByStripeSubscriptionId(
+      subscriptionId,
+      {
+        status: SubscriptionStatus.ACTIVE,
+        isActive: true,
+        currentPeriodStart: new Date(invoice.period_start * 1000),
+        currentPeriodEnd: new Date(invoice.period_end * 1000),
+      },
+    );
+  }
+
+  private async handleInvoicePaymentFailed(
+    invoice: Stripe.Invoice,
+  ): Promise<void> {
+    const subscriptionId =
+      invoice.parent?.subscription_details?.subscription.toString();
+
+    if (!subscriptionId) {
+      throw new NotFoundException('Subscription not found');
+    }
+
+    const subscription =
+      await this.subscriptionRepository.findByStripeSubscriptionId(
+        subscriptionId,
+      );
+
+    if (!subscription) {
+      throw new NotFoundException('Subscription not found');
+    }
+
+    const attemptCount = invoice.attempt_count ?? 0;
+    const nextAttempt = invoice.next_payment_attempt;
+
+    let newStatus: SubscriptionStatus = SubscriptionStatus.PAST_DUE;
+
+    /**
+     * Stripe rules:
+     * - incomplete  → first payment failed
+     * - past_due    → retrying
+     * - unpaid      → retries exhausted (final)
+     */
+    if (!nextAttempt && attemptCount > 0) {
+      newStatus = SubscriptionStatus.UNPAID;
+    }
+
+    // 4️⃣ Persist status (idempotent)
+    await this.subscriptionRepository.updateByStripeSubscriptionId(
+      subscriptionId,
+      {
+        status: newStatus,
+        isActive: false,
+      },
+    );
+
+    // 5️⃣ Notify user (no side effects)
+    const user = await this.userRepository.findById(subscription.userId);
+    if (user) {
+      console.log(
+        `⚠️ Payment failed for user ${user.email}. Status: ${newStatus}`,
+      );
+      // TODO: send email / push / in-app notification
+    }
+
+    // 6️⃣ If UNPAID → Stripe will auto-cancel (prepare cleanup)
+    if (newStatus === SubscriptionStatus.UNPAID) {
+      console.log(
+        `🚫 Subscription ${subscriptionId} is unpaid and may be canceled by Stripe`,
+      );
+    }
   }
 }
