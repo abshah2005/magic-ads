@@ -50,6 +50,9 @@ export class Subscription {
   @Prop({ type: Date, default: null })
   trialEnd?: Date;
 
+  @Prop({ type: Date, default: null })
+  gracePeriodEnd: Date | null;
+
   @Prop({ default: true })
   isActive: boolean;
 

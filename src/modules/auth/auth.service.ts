@@ -20,6 +20,7 @@ import { UsersRepository } from '../users/users.repository';
 import { ApiResponse } from 'src/common/responses/api-response';
 import { EmailService } from '../email/email.service';
 import { JwtPayload } from 'src/shared/interfaces/jwt-payload';
+import { SubscriptionService } from '../subscriptions/subscriptions.service';
 
 @Injectable()
 export class AuthService {
@@ -30,6 +31,7 @@ export class AuthService {
     private readonly authRepository: MagicLinkRepository,
     private readonly sessionRepository: SessionRepository,
     private readonly emailService: EmailService,
+    private readonly subscriptionService:SubscriptionService
   ) {}
 
   async googleSignupOrLogin(token: string): Promise<ApiResponse> {
@@ -50,6 +52,7 @@ export class AuthService {
     if (!user) {
       try {
         user = await this.usersService.signup(userData);
+        await this.subscriptionService.assignFreePlanToUser(user._id.toString());
       } catch (err) {
         if (err.code === 11000) {
           user = await this.usersRepository.findByGoogleId(googleUser.googleId);
@@ -70,7 +73,7 @@ export class AuthService {
     });
 
     const accessToken = signAccessToken({
-      sub: user!!._id?.toString(), // ensure it's a string
+      sub: user!!._id?.toString(), 
       email: user!!.email,
     });
     const responseData = {
@@ -97,6 +100,7 @@ export class AuthService {
         profilePicKey: null,
       };
       user = await this.usersService.signup(userData);
+      await this.subscriptionService.assignFreePlanToUser(user._id.toString());
     }
 
     const rawToken = crypto.randomBytes(32).toString('hex');
@@ -115,7 +119,7 @@ export class AuthService {
     } catch (error) {
       console.error('Failed to send magic link email:', error);
       return ApiResponse.success(
-        { rawToken }, // For development/testing
+        { rawToken },
         'Magic link generated but email failed to send',
       );
     }

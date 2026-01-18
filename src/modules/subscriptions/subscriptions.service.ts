@@ -23,6 +23,7 @@ import {
   consumeCredits,
   rollbackCredits,
 } from 'src/common/utils/credits.util';
+import { generateFreeStripeLikeId } from 'src/common/utils/generate-random.util';
 
 @Injectable()
 export class SubscriptionService {
@@ -58,8 +59,25 @@ export class SubscriptionService {
 
       const existingSubscription =
         await this.subscriptionRepository.findByUserId(userId);
+      if (!existingSubscription) {
+        throw new NotFoundException('Subscription not found');
+      }
 
-      if (existingSubscription) {
+      const existingPlan = await this.plansRepository.findById(
+        existingSubscription.planId,
+      );
+
+      if (!existingPlan) {
+        throw new NotFoundException(
+          'no plan associated with subscription found',
+        );
+      }
+
+      if (
+        existingSubscription.status === SubscriptionStatus.ACTIVE &&
+        existingPlan &&
+        existingPlan.price > 0
+      ) {
         throw new BadRequestException(
           'User already has an active subscription',
         );
@@ -119,8 +137,6 @@ export class SubscriptionService {
         id: session.id,
         url: session.url,
         status: session.status,
-        customerId: session.customer as string,
-        subscriptionId: session.subscription as string,
       };
 
       return ApiResponse.success(
@@ -377,8 +393,6 @@ export class SubscriptionService {
       'Subscription upgrade/downgrade prorated adjustment',
     );
 
-    // 2️⃣ Update subscription DB
-    console.log('reached updation');
     const updated = await this.subscriptionRepository.update(
       currentSubscription._id.toString(),
       {
@@ -397,6 +411,34 @@ export class SubscriptionService {
     );
   }
 
+  async assignFreePlanToUser(userId: string): Promise<void> {
+    const existing = await this.subscriptionRepository.findByUserId(userId);
+    if (existing) {
+      throw new Error('Susbcription already exists against this user');
+    }
+
+    const freePlan = await this.plansRepository.findById(
+      '696b60598a593b58758627a3',
+    );
+    if (!freePlan) throw new Error('Free plan not found');
+
+    await this.subscriptionRepository.create({
+      stripeSubscriptionId: generateFreeStripeLikeId('free_sub'),
+      stripeCustomerId: generateFreeStripeLikeId('free_cus'),
+      userId,
+      planId: freePlan._id.toString(),
+      stripePriceId: freePlan.stripePriceId,
+      stripeProductId: freePlan.stripeProductId,
+      status: SubscriptionStatus.TRIALING,
+      isActive: true,
+      currentPeriodStart: new Date(),
+      currentPeriodEnd: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+    });
+    await this.userRepository.updateUser(userId, {
+      creditsAvailable: freePlan.aiCredits,
+    });
+  }
+
   async getUserSubscription(userId: string): Promise<ApiResponse> {
     const subscription = await this.subscriptionRepository.findByUserId(userId);
 
@@ -406,22 +448,18 @@ export class SubscriptionService {
 
     const response: SubscriptionResponseDto = {
       id: subscription._id.toString(),
-      stripeSubscriptionId: subscription.stripeSubscriptionId,
-      stripeCustomerId: subscription.stripeCustomerId,
+      // stripeSubscriptionId: subscription.stripeSubscriptionId,
+      // stripeCustomerId: subscription.stripeCustomerId,
       userId: subscription.userId,
       planId: subscription.planId,
-      stripePriceId: subscription.stripePriceId,
-      stripeProductId: subscription.stripeProductId,
+      // stripePriceId: subscription.stripePriceId,
+      // stripeProductId: subscription.stripeProductId,
       status: subscription.status,
       currentPeriodStart: subscription.currentPeriodStart,
       currentPeriodEnd: subscription.currentPeriodEnd,
       cancelAtPeriodEnd: subscription.cancelAtPeriodEnd,
       canceledAt: subscription.canceledAt,
-      trialStart: subscription.trialStart,
-      trialEnd: subscription.trialEnd,
       isActive: subscription.isActive,
-      createdAt: subscription.createdAt,
-      updatedAt: subscription.updatedAt,
     };
 
     return ApiResponse.success(
@@ -619,18 +657,37 @@ export class SubscriptionService {
     );
 
     if (subscription.status === SubscriptionStatus.PAST_DUE) {
+      //will send mails later for past due
       console.log(`Subscription is past due for user: ${user.email}`);
     } else if (subscription.status === SubscriptionStatus.UNPAID) {
+      //will send mails later for unpaid
       console.log(`Subscription is unpaid for user: ${user.email}`);
     }
   }
 
+
   private async handleSubscriptionCreated(subscription: Stripe.Subscription) {
-    const userId = subscription.metadata?.userId;
-    const planId = subscription.metadata?.planId;
+  const userId = subscription.metadata?.userId;
+  const planId = subscription.metadata?.planId;
 
-    if (!userId || !planId) return;
+  if (!userId || !planId) return;
 
+  
+  const existing = await this.subscriptionRepository.findByUserId(userId);
+
+  if (existing) {
+    
+    await this.subscriptionRepository.update(existing._id.toString(), {
+      stripeSubscriptionId: subscription.id,
+      stripeCustomerId: subscription.customer as string,
+      planId,
+      stripePriceId: subscription.items.data[0].price.id,
+      stripeProductId: subscription.items.data[0].price.product as string,
+      status: subscription.status as SubscriptionStatus,
+      isActive: false, 
+    });
+  } else {
+    
     await this.subscriptionRepository.create({
       stripeSubscriptionId: subscription.id,
       stripeCustomerId: subscription.customer as string,
@@ -638,10 +695,11 @@ export class SubscriptionService {
       planId,
       stripePriceId: subscription.items.data[0].price.id,
       stripeProductId: subscription.items.data[0].price.product as string,
-      status: subscription.status as SubscriptionStatus, // incomplete
-      isActive: false, // 🔴 IMPORTANT
+      status: subscription.status as SubscriptionStatus,
+      isActive: false,
     });
   }
+}
 
   private async handleSubscriptionDeleted(subscription: Stripe.Subscription) {
     const userId = subscription.metadata?.userId;
@@ -767,9 +825,12 @@ export class SubscriptionService {
     const nextAttempt = invoice.next_payment_attempt;
 
     let newStatus: SubscriptionStatus = SubscriptionStatus.PAST_DUE;
+    let gracePeriodEnd: Date | null = null;
 
     if (!nextAttempt && attemptCount > 0) {
       newStatus = SubscriptionStatus.UNPAID;
+      // Set grace period (e.g., 7 days from now)
+      gracePeriodEnd = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
     }
 
     // 4️⃣ Persist status (idempotent)
@@ -778,6 +839,7 @@ export class SubscriptionService {
       {
         status: newStatus,
         isActive: false,
+        gracePeriodEnd, // <-- add this
       },
     );
 

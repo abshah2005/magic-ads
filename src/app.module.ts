@@ -15,7 +15,6 @@ import { EmailModule } from './modules/email/email.module';
 import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
 import { R2Service } from './integrations/r2/r2.service';
 import { MediaModule } from './modules/media/media.module';
-import { StripeModule } from './integrations/stripe/stripe.module';
 import { PlanSeeder } from './modules/plans/scripts/initialize-plans';
 import { PlansModule } from './modules/plans/plans.module';
 import { SubscriptionModule } from './modules/subscriptions/subscriptions.module';
@@ -37,7 +36,6 @@ import { SubscriptionModule } from './modules/subscriptions/subscriptions.module
         limit: 100, 
       },
     ]),
-    StripeModule,
     DatabaseModule,
     AssetsModule,
     PlansModule,

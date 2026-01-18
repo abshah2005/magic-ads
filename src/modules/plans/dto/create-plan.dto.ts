@@ -7,6 +7,7 @@ import {
   IsBoolean,
   IsOptional,
   Min,
+  IsIn,
 } from 'class-validator';
 import { PlanInterval, PlanType } from '../../../shared/enums/plans.enum';
 
@@ -45,10 +46,10 @@ export class CreatePlanDto {
   @Min(0)
   aiCredits: number;
 
-  @IsNotEmpty({ message: 'Active Ad Campaigns is required' })
-  @IsNumber()
-  @Min(0)
-  activeAdCampaigns: number;
+@IsNotEmpty({ message: 'Active Ad Campaigns is required' })
+@IsNumber()
+@IsIn([-1, 0, 1], { message: 'Active Ad Campaigns must be -1, 0, or 1' })
+activeAdCampaigns: number;
 
   @IsNotEmpty({ message: 'Asset Storage is required' })
   @IsString()

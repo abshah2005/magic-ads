@@ -12,7 +12,6 @@ export class PlanRepository {
   ) {}
 
   async create(createPlanDto: CreatePlanDto): Promise<Plan> {
-    // Check if plan type and interval combination already exists
     const existingPlan = await this.planModel.findOne({
       type: createPlanDto.type,
       interval: createPlanDto.interval,
