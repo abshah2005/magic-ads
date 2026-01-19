@@ -1,4 +1,9 @@
-import { Injectable, ConflictException, NotFoundException, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  ConflictException,
+  NotFoundException,
+  BadRequestException,
+} from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { Plan, PlanDocument } from './schemas/plans.schema';
@@ -7,9 +12,7 @@ import { UpdatePlanDto } from './dto/update-plan.dto';
 
 @Injectable()
 export class PlanRepository {
-  constructor(
-    @InjectModel(Plan.name) private planModel: Model<PlanDocument>,
-  ) {}
+  constructor(@InjectModel(Plan.name) private planModel: Model<PlanDocument>) {}
 
   async create(createPlanDto: CreatePlanDto): Promise<Plan> {
     const existingPlan = await this.planModel.findOne({
@@ -28,19 +31,29 @@ export class PlanRepository {
   }
 
   async getAll(): Promise<PlanDocument[]> {
-  return this.planModel.find().exec();
-}
+    return this.planModel.find().exec();
+  }
+
+  async findFreePlan(): Promise<PlanDocument | null> {
+    return this.planModel.findOne({ price: 0 }).exec();
+  }
 
   async findById(id: string): Promise<PlanDocument | null> {
     return this.planModel.findById(id).exec();
   }
 
-  async findByTypeAndInterval(type: string, interval: string): Promise<PlanDocument | null> {
+  async findByTypeAndInterval(
+    type: string,
+    interval: string,
+  ): Promise<PlanDocument | null> {
     return this.planModel.findOne({ type, interval }).exec();
   }
 
   async findActivePlans(): Promise<PlanDocument[]> {
-    return this.planModel.find({ isActive: true }).sort({ sortOrder: 1 }).exec();
+    return this.planModel
+      .find({ isActive: true })
+      .sort({ sortOrder: 1 })
+      .exec();
   }
 
   async update(id: string, updatePlanDto: UpdatePlanDto): Promise<Plan | null> {
@@ -86,11 +99,7 @@ export class PlanRepository {
     }
 
     return this.planModel
-      .findByIdAndUpdate(
-        id,
-        { isActive: !plan.isActive },
-        { new: true },
-      )
+      .findByIdAndUpdate(id, { isActive: !plan.isActive }, { new: true })
       .exec();
   }
 }

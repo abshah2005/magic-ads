@@ -2,15 +2,13 @@ import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { Plan } from '../schemas/plans.schema';
-import { PlanInterval, PlanType} from "src/shared/enums/plans.enum"
+import { PlanInterval, PlanType } from 'src/shared/enums/plans.enum';
 
 @Injectable()
 export class PlanSeeder implements OnModuleInit {
   private readonly logger = new Logger(PlanSeeder.name);
 
-  constructor(
-    @InjectModel(Plan.name) private planModel: Model<Plan>,
-  ) {}
+  constructor(@InjectModel(Plan.name) private planModel: Model<Plan>) {}
 
   async onModuleInit() {
     await this.seedPlans();
@@ -19,20 +17,21 @@ export class PlanSeeder implements OnModuleInit {
   private async seedPlans() {
     try {
       const count = await this.planModel.countDocuments();
-      
+
       if (count === 0) {
         this.logger.log('Seeding plans data...');
-        
+
         const plans = [
           // STARTER Plans
           {
             name: 'Starter Plan',
             type: PlanType.STARTER,
-            description: 'Perfect for getting started with AI-powered ad creation',
+            description:
+              'Perfect for getting started with AI-powered ad creation',
             price: 0,
             interval: PlanInterval.MONTHLY,
-            stripePriceId: 'price_starter_monthly',
-            stripeProductId: 'prod_starter',
+            stripePriceId: 'price_1SpqT7C2esy5ycVXYU6RGDjN',
+            stripeProductId: 'prod_TnRLVMihRI429d',
             aiCredits: 100,
             activeAdCampaigns: 1,
             assetStorage: 'Up to 3 Uploaded Assets',
@@ -48,7 +47,8 @@ export class PlanSeeder implements OnModuleInit {
           {
             name: 'Starter Plan (Annual)',
             type: PlanType.STARTER,
-            description: 'Perfect for getting started with AI-powered ad creation',
+            description:
+              'Perfect for getting started with AI-powered ad creation',
             price: 0,
             interval: PlanInterval.ANNUAL,
             stripePriceId: 'price_1SpqT7C2esy5ycVXYU6RGDjN',
@@ -70,7 +70,8 @@ export class PlanSeeder implements OnModuleInit {
           {
             name: 'Pro Plan',
             type: PlanType.PRO,
-            description: 'For growing businesses with advanced ad creation needs',
+            description:
+              'For growing businesses with advanced ad creation needs',
             price: 29,
             interval: PlanInterval.MONTHLY,
             stripePriceId: 'price_1SpqTuC2esy5ycVXhJHtikMX',
@@ -92,11 +93,12 @@ export class PlanSeeder implements OnModuleInit {
           {
             name: 'Pro Plan (Annual)',
             type: PlanType.PRO,
-            description: 'For growing businesses with advanced ad creation needs',
+            description:
+              'For growing businesses with advanced ad creation needs',
             price: 290, // 29 * 10 (discounted for annual)
             interval: PlanInterval.ANNUAL,
-            stripePriceId: 'price_pro_annual',
-            stripeProductId: 'prod_pro',
+            stripePriceId: 'price_1SpqT7C2esy5ycVXYU6RGDjN',
+            stripeProductId: 'prod_TnRLVMihRI429d',
             aiCredits: 24000, // 2000 * 12
             activeAdCampaigns: -1,
             assetStorage: '100GB Asset Storage',
@@ -120,8 +122,8 @@ export class PlanSeeder implements OnModuleInit {
             description: 'For large organizations with enterprise requirements',
             price: 99,
             interval: PlanInterval.MONTHLY,
-            stripePriceId: 'price_enterprise_monthly',
-            stripeProductId: 'prod_enterprise',
+            stripePriceId: 'price_1SpqT7C2esy5ycVXYU6RGDjN',
+            stripeProductId: 'prod_TnRLVMihRI429d',
             aiCredits: 10000,
             activeAdCampaigns: -1,
             assetStorage: 'Unlimited Asset Storage',

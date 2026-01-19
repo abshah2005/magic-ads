@@ -381,7 +381,7 @@ export class SubscriptionService {
     );
 
     console.log('reached propration');
-    // 1️⃣ Adjust credits safely using the idempotent utility
+    //  Adjust credits safely using the idempotent utility
     await this.adjustUserCredits(
       userId,
       currentSubscription.id,
@@ -417,9 +417,8 @@ export class SubscriptionService {
       throw new Error('Susbcription already exists against this user');
     }
 
-    const freePlan = await this.plansRepository.findById(
-      '696b60598a593b58758627a3',
-    );
+
+    const freePlan=await this.plansRepository.findFreePlan();
     if (!freePlan) throw new Error('Free plan not found');
 
     await this.subscriptionRepository.create({
@@ -448,12 +447,8 @@ export class SubscriptionService {
 
     const response: SubscriptionResponseDto = {
       id: subscription._id.toString(),
-      // stripeSubscriptionId: subscription.stripeSubscriptionId,
-      // stripeCustomerId: subscription.stripeCustomerId,
       userId: subscription.userId,
       planId: subscription.planId,
-      // stripePriceId: subscription.stripePriceId,
-      // stripeProductId: subscription.stripeProductId,
       status: subscription.status,
       currentPeriodStart: subscription.currentPeriodStart,
       currentPeriodEnd: subscription.currentPeriodEnd,

@@ -1,5 +1,5 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import { Document, Schema as MongooseSchema } from 'mongoose';
+import { Document } from 'mongoose';
 import { PlanInterval, PlanType } from 'src/shared/enums/plans.enum';
 
 export type PlanDocument = Plan & Document;
