@@ -18,6 +18,7 @@ import { Public } from 'src/common/decorators/public.decorator';
 import { User } from 'src/common/decorators/user.decorator';
 import type { Request } from 'express';
 import { BillingHistoryQueryDto } from './dto/billing-history-query.dto';
+import { CancelRequestDTO } from './dto/cancel-request.dto';
 
 @Controller('subscriptions')
 export class SubscriptionController {
@@ -71,13 +72,13 @@ export class SubscriptionController {
   }
 
   @Post('cancel')
-  async cancelSubscription(@User() user): Promise<ApiResponse> {
+  async cancelSubscription(@User() user, @Body() body: CancelRequestDTO): Promise<ApiResponse> {
     const userId = user._id;
     if (!userId) {
       throw new BadRequestException('User not found');
     }
 
-    return this.subscriptionService.cancelSubscription(userId);
+    return this.subscriptionService.cancelSubscription(userId,body.reason);
   }
 
   @Get('billing-history')
