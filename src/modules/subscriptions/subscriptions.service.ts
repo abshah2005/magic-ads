@@ -247,6 +247,12 @@ export class SubscriptionService {
 
     const invoices = await this.stripe.invoices.list(params);
 
+    // invoices.data.forEach((invoice) => {
+    //   invoice.lines.data.forEach((line) => {
+    //     console.log(line.metadata);
+    //   });
+    // });
+
     const data = invoices.data.map((invoice) => ({
       id: invoice.id,
       amountPaid: invoice.amount_paid / 100,
@@ -381,7 +387,6 @@ export class SubscriptionService {
     );
 
     console.log('reached propration');
-    //  Adjust credits safely using the idempotent utility
     await this.adjustUserCredits(
       userId,
       currentSubscription.id,
@@ -417,8 +422,7 @@ export class SubscriptionService {
       throw new Error('Susbcription already exists against this user');
     }
 
-
-    const freePlan=await this.plansRepository.findFreePlan();
+    const freePlan = await this.plansRepository.findFreePlan();
     if (!freePlan) throw new Error('Free plan not found');
 
     await this.subscriptionRepository.create({
@@ -464,7 +468,10 @@ export class SubscriptionService {
     );
   }
 
-  async cancelSubscription(userId: string): Promise<ApiResponse> {
+  async cancelSubscription(
+    userId: string,
+    reason?: string,
+  ): Promise<ApiResponse> {
     const subscription = await this.subscriptionRepository.findByUserId(userId);
 
     if (!subscription) {
@@ -493,6 +500,7 @@ export class SubscriptionService {
         subscription._id.toString(),
         {
           cancelAtPeriodEnd: true,
+          reason: reason,
         },
       );
 
@@ -660,41 +668,37 @@ export class SubscriptionService {
     }
   }
 
-
   private async handleSubscriptionCreated(subscription: Stripe.Subscription) {
-  const userId = subscription.metadata?.userId;
-  const planId = subscription.metadata?.planId;
+    const userId = subscription.metadata?.userId;
+    const planId = subscription.metadata?.planId;
 
-  if (!userId || !planId) return;
+    if (!userId || !planId) return;
 
-  
-  const existing = await this.subscriptionRepository.findByUserId(userId);
+    const existing = await this.subscriptionRepository.findByUserId(userId);
 
-  if (existing) {
-    
-    await this.subscriptionRepository.update(existing._id.toString(), {
-      stripeSubscriptionId: subscription.id,
-      stripeCustomerId: subscription.customer as string,
-      planId,
-      stripePriceId: subscription.items.data[0].price.id,
-      stripeProductId: subscription.items.data[0].price.product as string,
-      status: subscription.status as SubscriptionStatus,
-      isActive: false, 
-    });
-  } else {
-    
-    await this.subscriptionRepository.create({
-      stripeSubscriptionId: subscription.id,
-      stripeCustomerId: subscription.customer as string,
-      userId,
-      planId,
-      stripePriceId: subscription.items.data[0].price.id,
-      stripeProductId: subscription.items.data[0].price.product as string,
-      status: subscription.status as SubscriptionStatus,
-      isActive: false,
-    });
+    if (existing) {
+      await this.subscriptionRepository.update(existing._id.toString(), {
+        stripeSubscriptionId: subscription.id,
+        stripeCustomerId: subscription.customer as string,
+        planId,
+        stripePriceId: subscription.items.data[0].price.id,
+        stripeProductId: subscription.items.data[0].price.product as string,
+        status: subscription.status as SubscriptionStatus,
+        isActive: false,
+      });
+    } else {
+      await this.subscriptionRepository.create({
+        stripeSubscriptionId: subscription.id,
+        stripeCustomerId: subscription.customer as string,
+        userId,
+        planId,
+        stripePriceId: subscription.items.data[0].price.id,
+        stripeProductId: subscription.items.data[0].price.product as string,
+        status: subscription.status as SubscriptionStatus,
+        isActive: false,
+      });
+    }
   }
-}
 
   private async handleSubscriptionDeleted(subscription: Stripe.Subscription) {
     const userId = subscription.metadata?.userId;
@@ -764,39 +768,6 @@ export class SubscriptionService {
     );
   }
 
-  // private async handleInvoicePaymentSucceeded(invoice: Stripe.Invoice) {
-  //   const subscriptionId =
-  //     invoice.parent?.subscription_details?.subscription.toString();
-
-  //   if (!subscriptionId) return;
-
-  //   const subscription =
-  //     await this.subscriptionRepository.findByStripeSubscriptionId(
-  //       subscriptionId,
-  //     );
-
-  //   if (!subscription) return;
-
-  //   const plan = await this.plansRepository.findById(subscription.planId);
-  //   const user = await this.userRepository.findById(subscription.userId);
-
-  //   if (!plan || !user) return;
-
-  //   await this.userRepository.updateUser(user.id, {
-  //     creditsAvailable: user.creditsAvailable + plan.aiCredits,
-  //   });
-
-  //   await this.subscriptionRepository.updateByStripeSubscriptionId(
-  //     subscriptionId,
-  //     {
-  //       status: SubscriptionStatus.ACTIVE,
-  //       isActive: true,
-  //       currentPeriodStart: new Date(invoice.period_start * 1000),
-  //       currentPeriodEnd: new Date(invoice.period_end * 1000),
-  //     },
-  //   );
-  // }
-
   private async handleInvoicePaymentFailed(
     invoice: Stripe.Invoice,
   ): Promise<void> {
@@ -828,7 +799,7 @@ export class SubscriptionService {
       gracePeriodEnd = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
     }
 
-    // 4️⃣ Persist status (idempotent)
+    //  Persist status (idempotent)
     await this.subscriptionRepository.updateByStripeSubscriptionId(
       subscriptionId,
       {
@@ -838,7 +809,7 @@ export class SubscriptionService {
       },
     );
 
-    // 5️⃣ Notify user (no side effects)
+    //  Notify user (no side effects)
     const user = await this.userRepository.findById(subscription.userId);
     if (user) {
       console.log(
@@ -847,7 +818,7 @@ export class SubscriptionService {
       // TODO: send email / push / in-app notification
     }
 
-    // 6️⃣ If UNPAID → Stripe will auto-cancel (prepare cleanup)
+    //  If UNPAID → Stripe will auto-cancel (prepare cleanup)
     if (newStatus === SubscriptionStatus.UNPAID) {
       console.log(
         `🚫 Subscription ${subscriptionId} is unpaid and may be canceled by Stripe`,

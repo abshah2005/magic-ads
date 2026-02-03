@@ -13,6 +13,9 @@ export class Subscription {
   @Prop({ required: true })
   stripeCustomerId: string;
 
+  @Prop({ type: String })
+  reason?: string;
+
   @Prop({
     required: true,
     type: MongooseSchema.Types.ObjectId,
